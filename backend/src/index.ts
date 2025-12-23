@@ -11,6 +11,13 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL
 })
 
+// CORS middleware
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*')
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept')
+  next()
+})
+
 app.get('/api/health', async (req, res) => {
   try {
     const client = await pool.connect()
@@ -19,6 +26,17 @@ app.get('/api/health', async (req, res) => {
     res.json({ status: 'ok' })
   } catch (err) {
     res.status(500).json({ status: 'error', error: String(err) })
+  }
+})
+
+app.get('/api/projects', async (req, res) => {
+  try {
+    const client = await pool.connect()
+    const result = await client.query('SELECT * FROM projects ORDER BY id')
+    client.release()
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
   }
 })
 
