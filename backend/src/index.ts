@@ -40,6 +40,28 @@ app.get('/api/projects', async (req, res) => {
   }
 })
 
+app.get('/api/project-documents', async (req, res) => {
+  try {
+    const projectName = req.query.projectName as string
+    const client = await pool.connect()
+    let result
+    if (projectName) {
+      result = await client.query(
+        'SELECT id, project_name, document_id, document_description FROM project_documents WHERE project_name = $1 ORDER BY id ASC',
+        [projectName]
+      )
+    } else {
+      result = await client.query(
+        'SELECT id, project_name, document_id, document_description FROM project_documents ORDER BY id ASC'
+      )
+    }
+    client.release()
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 app.listen(port, () => {
   console.log(`Backend listening on port ${port}`)
 })
