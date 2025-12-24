@@ -115,6 +115,8 @@ Backend runs on `http://localhost:4000`
 **Available endpoints:**
 - `GET /api/health` - Health check
 - `GET /api/projects` - List all projects
+- `GET /api/project-documents` - List all project documents or filter by projectName query parameter
+  - Example: `GET /api/project-documents?projectName=Project%20No.%201`
 
 ### Start the Frontend
 
@@ -126,8 +128,11 @@ npm start
 Frontend runs on `http://localhost:3000`
 
 Frontend UI:
-- Left panel: lists project names.
-- Right panel: shows Description of the selected project.
+- **Main Page:** Lists all projects on the left panel; displays selected project description on the right panel. Double-click a project to open the Project page.
+- **Project Page:** 
+  - Left panel: Lists document_id from project_documents for the selected project, ordered by id (ascending)
+  - Right panel: Shows document details (document_id, project_name, document_description)
+  - Background color: Light yellow (#FFFFE0)
 
 ## Utility Scripts
 
