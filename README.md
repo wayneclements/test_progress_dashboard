@@ -17,13 +17,14 @@ test_progress_dashboard/
 │   │   ├── 004_add_documnet_id_to_global_documents.sql
 │   │   ├── 005_add_documnet_description_to_global_documents.sql
 │   │   ├── 006_rename_documnet_id_to_document_id.sql
-│   │   └── 007_rename_documnet_description_to_document_description.sql
-│   ├── scripts/
-│   │   ├── create_db.js      # Create PostgreSQL database
-│   │   ├── drop_db.js        # Drop PostgreSQL database
-│   │   ├── insert_project.js # Insert test project
-│   │   ├── query_projects.js # Query all projects
-│   │   └── describe_table.js # Show table columns
+│   │   └── 007_rename_documnet_description_to_document_description.sql│   ├── 008_create_project_documents.sql  # project_documents table schema│   ├── scripts/
+│   │   ├── create_db.js                  # Create PostgreSQL database
+│   │   ├── drop_db.js                    # Drop PostgreSQL database
+│   │   ├── insert_project.js             # Insert test project
+│   │   ├── query_projects.js             # Query all projects
+│   │   ├── describe_table.js             # Show table columns
+│   │   ├── insert_global_document.js     # Insert row to global_documents
+│   │   └── query_global_document.js      # Query global_documents by document_id
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── .env                  # Database credentials
@@ -70,6 +71,8 @@ cd backend
 npm install
 npm run migrate
 ```
+
+**TypeScript Runner:** The backend uses `tsx` for running TypeScript at development and migration time (replaced `ts-node-dev` to eliminate the deprecated `inflight` dependency).
 
 Confirm or update `backend/.env` with your local credentials:
 
@@ -148,10 +151,16 @@ cd backend
 node scripts/describe_table.js projects
 ```
 
-**Show projects table columns:**
+**Insert document to global_documents:**
 ```powershell
 cd backend
-node scripts/describe_table.js projects
+node scripts/insert_global_document.js "Document ID" "Document Description"
+```
+
+**Query global_documents by document_id:**
+```powershell
+cd backend
+node scripts/query_global_document.js "Document ID"
 ```
 
 ## Database Schema
@@ -211,14 +220,42 @@ CREATE TABLE global_documents (
 | title | varchar(255) | NO | — |
 | content | text | YES | — |
 | created_at | timestamp | YES | CURRENT_TIMESTAMP |
-| document_id | text | YES | — |
+| document_id | text | NO | — |
 | document_description | text | YES | — |
+
+### project_documents Table
+
+```sql
+CREATE TABLE project_documents (
+  id SERIAL PRIMARY KEY,
+  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  content TEXT,
+  document_id TEXT NOT NULL,
+  document_description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_project_documents_project_id ON project_documents(project_id);
+ALTER TABLE project_documents ADD CONSTRAINT uniq_project_document_id UNIQUE (project_id, document_id);
+```
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|----------|
+| id | integer | NO | auto-increment |
+| project_id | integer | NO | FK to projects(id) |
+| title | varchar(255) | NO | — |
+| content | text | YES | — |
+| document_id | text | NO | — |
+| document_description | text | YES | — |
+| created_at | timestamp | YES | CURRENT_TIMESTAMP |
 
 ## Architecture
 
-- **Backend:** Express.js + TypeScript on port 4000
+- **Backend:** Express.js + TypeScript on port 4000, using `tsx` for TypeScript execution
 - **Frontend:** React 18 (via CDN) with Babel for JSX transpilation, served by Express on port 3000
 - **Database:** Local PostgreSQL with SQL migrations
+- **Dependencies:** Cleaned of deprecated packages (removed `ts-node-dev` and transitive `inflight` dependency)
 
 Docker has been removed; everything runs directly on your machine.
 
@@ -226,8 +263,11 @@ Docker has been removed; everything runs directly on your machine.
 
 - Frontend loads React from CDN and transpiles JSX in-browser using Babel (development-friendly).
 - Backend uses dotenv to load `DATABASE_URL` from `.env`.
-- Migrations run via `npm run migrate` using the `ts-node` TypeScript runner.
+- Migrations run via `npm run migrate` using `tsx` as the TypeScript runner.
 - All database utilities are simple Node.js scripts using the `pg` library.
+- Backend development uses `npm run dev` with `tsx --watch` for hot-reload.
+- Project-specific documents are stored in `project_documents` with FK to `projects` and unique constraint on (project_id, document_id).
+- Global documents are stored in `global_documents` with unique `document_id`.
 
 ## Troubleshooting
 

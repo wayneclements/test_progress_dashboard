@@ -1,12 +1,34 @@
 const { Client } = require('pg')
 const dotenv = require('dotenv')
+const path = require('path')
 
-dotenv.config()
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') })
 
 const tableName = process.argv[2] || 'projects'
 
+function createClient() {
+  const conn = process.env.DATABASE_URL
+  if (!conn) {
+    return new Client()
+  }
+  try {
+    const url = new URL(conn)
+    const config = {
+      host: url.hostname,
+      port: url.port ? Number(url.port) : 5432,
+      database: url.pathname.replace(/^\//, ''),
+      user: url.username,
+      password: String(url.password || ''),
+      ssl: false,
+    }
+    return new Client(config)
+  } catch (_) {
+    return new Client({ connectionString: conn, ssl: false })
+  }
+}
+
 async function main() {
-  const client = new Client({ connectionString: process.env.DATABASE_URL })
+  const client = createClient()
   try {
     await client.connect()
     const result = await client.query(`
