@@ -1,4 +1,4 @@
--- Create project_documents table
+-- Recreate project_documents table with project_name as text
 CREATE TABLE IF NOT EXISTS project_documents (
   id SERIAL PRIMARY KEY,
   project_name TEXT NOT NULL,

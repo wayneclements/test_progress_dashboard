@@ -17,14 +17,26 @@ test_progress_dashboard/
 │   │   ├── 004_add_documnet_id_to_global_documents.sql
 │   │   ├── 005_add_documnet_description_to_global_documents.sql
 │   │   ├── 006_rename_documnet_id_to_document_id.sql
-│   │   └── 007_rename_documnet_description_to_document_description.sql│   ├── 008_create_project_documents.sql  # project_documents table schema│   ├── scripts/
+│   │   ├── 007_rename_documnet_description_to_document_description.sql
+│   │   ├── 008_create_project_documents.sql              # project_documents table schema
+│   │   ├── 009_drop_title_from_global_documents.sql
+│   │   ├── 010_drop_content_from_global_documents.sql
+│   │   ├── 011_drop_content_from_project_documents.sql
+│   │   ├── 012_drop_title_from_project_documents.sql
+│   │   ├── 013_rename_project_id_to_project_name.sql
+│   │   ├── 014_change_project_name_type_to_text.sql
+│   │   ├── 015_drop_project_documents_table.sql
+│   │   ├── 016_drop_fk_constraint.sql
+│   │   ├── 017_recreate_project_documents_table.sql
+│   │   └── 018_copy_global_documents_to_project_documents.sql│   ├── scripts/
 │   │   ├── create_db.js                  # Create PostgreSQL database
 │   │   ├── drop_db.js                    # Drop PostgreSQL database
 │   │   ├── insert_project.js             # Insert test project
 │   │   ├── query_projects.js             # Query all projects
 │   │   ├── describe_table.js             # Show table columns
 │   │   ├── insert_global_document.js     # Insert row to global_documents
-│   │   └── query_global_document.js      # Query global_documents by document_id
+│   │   ├── query_global_document.js      # Query global_documents by document_id
+│   │   └── query_project_documents.js    # Query project_documents with aggregation
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── .env                  # Database credentials
@@ -163,6 +175,12 @@ cd backend
 node scripts/query_global_document.js "Document ID"
 ```
 
+**Query project_documents with aggregation:**
+```powershell
+cd backend
+node scripts/query_project_documents.js
+```
+
 ## Database Schema
 
 ### Projects Table
@@ -203,11 +221,9 @@ CREATE TABLE global_tags (
 
 ### global_documents Table
 
-```
+```sql
 CREATE TABLE global_documents (
   id SERIAL PRIMARY KEY,
-  title VARCHAR(255) NOT NULL,
-  content TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   document_id TEXT UNIQUE,
   document_description TEXT UNIQUE
@@ -217,10 +233,8 @@ CREATE TABLE global_documents (
 | Column | Type | Nullable | Default |
 |--------|------|----------|---------|
 | id | integer | NO | auto-increment |
-| title | varchar(255) | NO | — |
-| content | text | YES | — |
 | created_at | timestamp | YES | CURRENT_TIMESTAMP |
-| document_id | text | NO | — |
+| document_id | text | YES | — |
 | document_description | text | YES | — |
 
 ### project_documents Table
@@ -228,27 +242,25 @@ CREATE TABLE global_documents (
 ```sql
 CREATE TABLE project_documents (
   id SERIAL PRIMARY KEY,
-  project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-  title VARCHAR(255) NOT NULL,
-  content TEXT,
+  project_name TEXT NOT NULL,
   document_id TEXT NOT NULL,
   document_description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_project_documents_project_id ON project_documents(project_id);
-ALTER TABLE project_documents ADD CONSTRAINT uniq_project_document_id UNIQUE (project_id, document_id);
+CREATE INDEX idx_project_documents_project_name ON project_documents(project_name);
+ALTER TABLE project_documents ADD CONSTRAINT uniq_project_document_id UNIQUE (project_name, document_id);
 ```
 
 | Column | Type | Nullable | Default |
 |--------|------|----------|----------|
 | id | integer | NO | auto-increment |
-| project_id | integer | NO | FK to projects(id) |
-| title | varchar(255) | NO | — |
-| content | text | YES | — |
+| project_name | text | NO | — |
 | document_id | text | NO | — |
 | document_description | text | YES | — |
 | created_at | timestamp | YES | CURRENT_TIMESTAMP |
+
+**Data:** Contains all global_documents copied for each project in the projects table (CROSS JOIN). Each project has all global documents associated with it.
 
 ## Architecture
 
@@ -266,8 +278,10 @@ Docker has been removed; everything runs directly on your machine.
 - Migrations run via `npm run migrate` using `tsx` as the TypeScript runner.
 - All database utilities are simple Node.js scripts using the `pg` library.
 - Backend development uses `npm run dev` with `tsx --watch` for hot-reload.
-- Project-specific documents are stored in `project_documents` with FK to `projects` and unique constraint on (project_id, document_id).
-- Global documents are stored in `global_documents` with unique `document_id`.
+- `project_documents` table stores documents scoped to project names (text-based, not FK-based).
+- All global_documents are duplicated in `project_documents` for each project via CROSS JOIN migration.
+- `global_documents` contains only `id`, `created_at`, `document_id`, and `document_description` (no `title` or `content`).
+- `project_documents` contains only `id`, `project_name`, `document_id`, `document_description`, and `created_at` (no `title` or `content`).
 
 ## Troubleshooting
 
