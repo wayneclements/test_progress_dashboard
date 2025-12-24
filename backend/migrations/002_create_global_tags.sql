@@ -1,0 +1,6 @@
+-- Create global_tags table
+CREATE TABLE IF NOT EXISTS global_tags (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

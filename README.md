@@ -11,7 +11,13 @@ test_progress_dashboard/
 │   │   ├── index.ts          # Express server & API endpoints
 │   │   └── migrate.ts        # Database migration runner
 │   ├── migrations/
-│   │   └── 001_create_projects.sql  # Projects table schema
+│   │   ├── 001_create_projects.sql              # Projects table schema
+│   │   ├── 002_create_global_tags.sql           # global_tags table schema
+│   │   ├── 003_create_global_documents.sql      # global_documents table schema
+│   │   ├── 004_add_documnet_id_to_global_documents.sql
+│   │   ├── 005_add_documnet_description_to_global_documents.sql
+│   │   ├── 006_rename_documnet_id_to_document_id.sql
+│   │   └── 007_rename_documnet_description_to_document_description.sql
 │   ├── scripts/
 │   │   ├── create_db.js      # Create PostgreSQL database
 │   │   ├── drop_db.js        # Drop PostgreSQL database
@@ -34,24 +40,24 @@ test_progress_dashboard/
 ## Prerequisites
 
 - **Node.js** (v16+)
-- **PostgreSQL** (v12+) running locally on `localhost:5432`
-- PostgreSQL user credentials (default: `postgres` / `postgres`)
+- **PostgreSQL** (v12+) installed locally on Windows (no Docker required)
+- PostgreSQL user credentials (current `.env`): user `postgres`, password `its`, database `test_process`
 
 ## Setup Instructions
 
-### 1. Database Setup
+### 1. Database Setup (Local Postgres)
 
-Ensure PostgreSQL is running. Create the `test_process` database using the helper script:
+Ensure PostgreSQL is installed and running on your machine (Windows Services → PostgreSQL). Create the `test_process` database using the helper script (uses credentials from `.env`):
 
 ```powershell
 cd backend
 npm install
-node scripts/create_db.js
+node scripts/create_db.js test_process
 ```
 
 Or manually with psql:
 ```powershell
-$env:PGPASSWORD='postgres'
+$env:PGPASSWORD='its'
 psql -U postgres -h localhost -p 5432 -c "CREATE DATABASE test_process;"
 ```
 
@@ -65,7 +71,8 @@ npm install
 npm run migrate
 ```
 
-Update `.env` if your PostgreSQL credentials differ from the defaults:
+Confirm or update `backend/.env` with your local credentials:
+
 ```
 DATABASE_URL=postgres://postgres:its@localhost:5432/test_process
 ```
@@ -135,6 +142,12 @@ cd backend
 node scripts/query_projects.js
 ```
 
+**Describe a table (e.g., projects):**
+```powershell
+cd backend
+node scripts/describe_table.js projects
+```
+
 **Show projects table columns:**
 ```powershell
 cd backend
@@ -163,13 +176,51 @@ CREATE TABLE projects (
 | created_at | timestamp | YES | CURRENT_TIMESTAMP |
 | updated_at | timestamp | YES | CURRENT_TIMESTAMP |
 
+### global_tags Table
+
+```
+CREATE TABLE global_tags (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL UNIQUE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|---------|
+| id | integer | NO | auto-increment |
+| name | varchar(255) | NO | — |
+| created_at | timestamp | YES | CURRENT_TIMESTAMP |
+
+### global_documents Table
+
+```
+CREATE TABLE global_documents (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  content TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  document_id TEXT UNIQUE,
+  document_description TEXT UNIQUE
+);
+```
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|---------|
+| id | integer | NO | auto-increment |
+| title | varchar(255) | NO | — |
+| content | text | YES | — |
+| created_at | timestamp | YES | CURRENT_TIMESTAMP |
+| document_id | text | YES | — |
+| document_description | text | YES | — |
+
 ## Architecture
 
 - **Backend:** Express.js + TypeScript on port 4000
 - **Frontend:** React 18 (via CDN) with Babel for JSX transpilation, served by Express on port 3000
-- **Database:** PostgreSQL with SQL migrations
+- **Database:** Local PostgreSQL with SQL migrations
 
-No Docker, Vite, or build tools required — minimal, direct setup.
+Docker has been removed; everything runs directly on your machine.
 
 ## Notes
 
@@ -198,11 +249,11 @@ No Docker, Vite, or build tools required — minimal, direct setup.
   - If on a different host/port, update the fetch URL in `frontend/src/main.js`.
 
 - Database connection errors:
-  - Verify PostgreSQL is running on localhost:5432.
-  - Check `backend/.env` `DATABASE_URL` matches your credentials and database name.
+  - Verify PostgreSQL Windows service is running and listening on localhost:5432.
+  - Check [backend/.env](backend/.env) `DATABASE_URL` matches your credentials and database name.
   - Create DB and run migrations:
     ```powershell
     cd backend
-    node scripts/create_db.js
+    node scripts/create_db.js test_process
     npm run migrate
     ```
