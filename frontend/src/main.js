@@ -1,3 +1,54 @@
+function drawConnectors(container) {
+  const boxes = container.querySelectorAll('[data-doc-id]')
+  if (boxes.length < 2) return
+
+  // Remove existing SVG if any
+  const existingSvg = container.querySelector('svg.connectors')
+  if (existingSvg) existingSvg.remove()
+
+  // Create SVG overlay
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  svg.setAttribute('class', 'connectors')
+  svg.style.position = 'absolute'
+  svg.style.top = '0'
+  svg.style.left = '0'
+  svg.style.width = '100%'
+  svg.style.height = '100%'
+  svg.style.pointerEvents = 'none'
+  svg.style.zIndex = '0'
+
+  // Draw lines from bottom of one box to top of next box
+  for (let i = 0; i < boxes.length - 1; i++) {
+    const box1 = boxes[i]
+    const box2 = boxes[i + 1]
+
+    // Get positions relative to container
+    const rect1 = box1.getBoundingClientRect()
+    const rect2 = box2.getBoundingClientRect()
+    const containerRect = container.getBoundingClientRect()
+
+    // Calculate positions relative to container
+    const x1 = rect1.left - containerRect.left + rect1.width / 2
+    const y1 = rect1.bottom - containerRect.top
+    const x2 = rect2.left - containerRect.left + rect2.width / 2
+    const y2 = rect2.top - containerRect.top
+
+    // Create line element
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line')
+    line.setAttribute('x1', x1)
+    line.setAttribute('y1', y1)
+    line.setAttribute('x2', x2)
+    line.setAttribute('y2', y2)
+    line.setAttribute('stroke', '#999')
+    line.setAttribute('stroke-width', '2')
+
+    svg.appendChild(line)
+  }
+
+  container.appendChild(svg)
+  container.style.zIndex = '1'
+}
+
 function App() {
   const [projects, setProjects] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -102,27 +153,35 @@ function App() {
           React.createElement('button', { onClick: () => setShowProjectPage(false), style: { padding: '6px 10px', cursor: 'pointer' } }, 'Close')
         ),
         React.createElement('div', { style: { display: 'flex', gap: '16px', height: 'calc(100% - 50px)' } },
-          React.createElement('div', { style: { flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '12px', overflowY: 'auto' } },
+          React.createElement('div', { style: { flex: 1, border: '1px solid #ccc', borderRadius: '6px', padding: '12px', overflowY: 'auto', position: 'relative' }, ref: (el) => { if (el) setTimeout(() => drawConnectors(el), 100) } },
             React.createElement('h3', null, 'Documents'),
             docsLoading && React.createElement('p', null, 'Loading documents...'),
             !docsLoading && projectDocuments.length === 0 && React.createElement('p', { style: { color: '#999' } }, 'No documents found'),
-            !docsLoading && projectDocuments.length > 0 && React.createElement('ul', { style: { listStyle: 'none', padding: 0, margin: 0 } },
-              projectDocuments.map(doc =>
-                React.createElement('li', {
+            !docsLoading && projectDocuments.length > 0 && React.createElement('div', { style: { display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'center', alignContent: 'flex-start' } },
+              projectDocuments.map((doc, idx) =>
+                React.createElement('div', {
                   key: doc.id,
+                  'data-doc-id': doc.id,
                   onClick: () => setSelectedDocument(doc),
                   style: {
-                    marginBottom: '8px',
-                    padding: '8px',
+                    width: 'calc(50% - 6px)',
+                    padding: '12px',
                     backgroundColor: selectedDocument?.id === doc.id ? '#007bff' : '#fff',
                     color: selectedDocument?.id === doc.id ? 'white' : 'black',
-                    borderRadius: '4px',
+                    borderRadius: '8px',
                     cursor: 'pointer',
                     border: '1px solid #ddd',
-                    fontWeight: selectedDocument?.id === doc.id ? 'bold' : 'normal'
+                    fontWeight: selectedDocument?.id === doc.id ? 'bold' : 'normal',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    textAlign: 'center',
+                    minHeight: '60px'
                   }
                 },
-                  React.createElement('p', { style: { margin: '0', fontSize: '14px' } }, doc.document_id)
+                  React.createElement('p', { style: { margin: '0', fontSize: '14px', wordWrap: 'break-word' } }, doc.document_id)
                 )
               )
             )
@@ -132,7 +191,6 @@ function App() {
             selectedDocument
               ? React.createElement(React.Fragment, null,
                   React.createElement('p', null, React.createElement('strong', null, 'Document ID: '), selectedDocument.document_id),
-                  React.createElement('p', null, React.createElement('strong', null, 'Project: '), selectedDocument.project_name),
                   React.createElement('p', null, React.createElement('strong', null, 'Description: '), selectedDocument.document_description || 'No description')
                 )
               : React.createElement('p', { style: { color: '#999' } }, 'Select a document to view details')

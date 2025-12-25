@@ -129,9 +129,10 @@ Frontend runs on `http://localhost:3000`
 
 Frontend UI:
 - **Main Page:** Lists all projects on the left panel; displays selected project description on the right panel. Double-click a project to open the Project page.
-- **Project Page:** 
-  - Left panel: Lists document_id from project_documents for the selected project, ordered by id (ascending)
-  - Right panel: Shows document details (document_id, project_name, document_description)
+- **Project Page:**
+  - Left panel: Documents render as individual cards (rounded corners, centered text) in two columns; cards are horizontally centered in the panel.
+  - Connector lines: A solid vertical line joins the bottom center of each card to the top center of the next card below (no overlap across cards).
+  - Right panel: Shows document details (Document ID, Description) for the selected card.
   - Background color: Light yellow (#FFFFE0)
 
 ## Utility Scripts
