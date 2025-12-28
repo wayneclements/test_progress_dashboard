@@ -47,14 +47,33 @@ app.get('/api/project-documents', async (req, res) => {
     let result
     if (projectName) {
       result = await client.query(
-        'SELECT id, project_name, document_id, document_description FROM project_documents WHERE project_name = $1 ORDER BY id ASC',
+        'SELECT id, project_name, document_name, document_description FROM project_documents WHERE project_name = $1 ORDER BY id ASC',
         [projectName]
       )
     } else {
       result = await client.query(
-        'SELECT id, project_name, document_id, document_description FROM project_documents ORDER BY id ASC'
+        'SELECT id, project_name, document_name, document_description FROM project_documents ORDER BY id ASC'
       )
     }
+    client.release()
+    res.json(result.rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// Return tags for a document by document_name
+app.get('/api/document-tags', async (req, res) => {
+  try {
+    const documentName = req.query.documentName as string
+    if (!documentName) {
+      return res.status(400).json({ error: 'Missing documentName query param' })
+    }
+    const client = await pool.connect()
+    const result = await client.query(
+      'SELECT id, tag_name, document_name, created_at FROM document_tags WHERE document_name = $1 ORDER BY id ASC',
+      [documentName]
+    )
     client.release()
     res.json(result.rows)
   } catch (err) {

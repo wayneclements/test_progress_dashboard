@@ -58,6 +58,8 @@ function App() {
   const [projectDocuments, setProjectDocuments] = React.useState([])
   const [docsLoading, setDocsLoading] = React.useState(false)
   const [selectedDocument, setSelectedDocument] = React.useState(null)
+  const [documentTags, setDocumentTags] = React.useState([])
+  const [tagsLoading, setTagsLoading] = React.useState(false)
 
   React.useEffect(() => {
     fetch('http://localhost:4000/api/projects')
@@ -83,6 +85,21 @@ function App() {
       .catch(err => {
         console.error(err)
         setDocsLoading(false)
+      })
+  }
+
+  const loadDocumentTags = (documentName) => {
+    setTagsLoading(true)
+    setDocumentTags([])
+    fetch(`http://localhost:4000/api/document-tags?documentName=${encodeURIComponent(documentName)}`)
+      .then(res => res.json())
+      .then(data => {
+        setDocumentTags(data)
+        setTagsLoading(false)
+      })
+      .catch(err => {
+        console.error(err)
+        setTagsLoading(false)
       })
   }
 
@@ -162,7 +179,7 @@ function App() {
                 React.createElement('div', {
                   key: doc.id,
                   'data-doc-id': doc.id,
-                  onClick: () => setSelectedDocument(doc),
+                  onClick: () => { setSelectedDocument(doc); loadDocumentTags(doc.document_name) },
                   style: {
                     width: 'calc(50% - 6px)',
                     padding: '12px',
@@ -181,7 +198,7 @@ function App() {
                     minHeight: '60px'
                   }
                 },
-                  React.createElement('p', { style: { margin: '0', fontSize: '14px', wordWrap: 'break-word' } }, doc.document_id)
+                  React.createElement('p', { style: { margin: '0', fontSize: '14px', wordWrap: 'break-word' } }, doc.document_name)
                 )
               )
             )
@@ -190,8 +207,14 @@ function App() {
             React.createElement('h3', null, 'Document Details'),
             selectedDocument
               ? React.createElement(React.Fragment, null,
-                  React.createElement('p', null, React.createElement('strong', null, 'Document ID: '), selectedDocument.document_id),
-                  React.createElement('p', null, React.createElement('strong', null, 'Description: '), selectedDocument.document_description || 'No description')
+                  React.createElement('p', null, React.createElement('strong', null, 'Document Name: '), selectedDocument.document_name),
+                  React.createElement('p', null, React.createElement('strong', null, 'Description: '), selectedDocument.document_description || 'No description'),
+                  React.createElement('h3', { style: { marginTop: '16px' } }, 'Tags'),
+                  tagsLoading && React.createElement('p', null, 'Loading tags...'),
+                  !tagsLoading && documentTags.length === 0 && React.createElement('p', { style: { color: '#999' } }, 'No tags found'),
+                  !tagsLoading && documentTags.length > 0 && React.createElement('ul', { style: { listStyle: 'none', padding: 0 } },
+                    documentTags.map(t => React.createElement('li', { key: t.id, style: { padding: '8px 0', borderBottom: '1px solid #eee' } }, t.tag_name))
+                  )
                 )
               : React.createElement('p', { style: { color: '#999' } }, 'Select a document to view details')
           )

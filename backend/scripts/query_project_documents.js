@@ -26,17 +26,22 @@ async function main() {
   const client = createClient()
   try {
     await client.connect()
-    const result = await client.query('SELECT COUNT(*) as count FROM project_documents')
-    console.log(`Total rows in project_documents: ${result.rows[0].count}`)
+    const result = await client.query('SELECT * FROM project_documents ORDER BY id')
     
-    const detailResult = await client.query(`
-      SELECT project_name, COUNT(*) as document_count
-      FROM project_documents
-      GROUP BY project_name
-      ORDER BY project_name
-    `)
-    console.log('\nDocuments per project:')
-    console.table(detailResult.rows)
+    if (result.rows.length === 0) {
+      console.log('No rows found in project_documents table.')
+    } else {
+      console.log(`\nFound ${result.rows.length} row(s) in project_documents table:\n`)
+      result.rows.forEach((row, idx) => {
+        console.log(`Row ${idx + 1}:`)
+        console.log(`  id: ${row.id}`)
+        console.log(`  project_name: ${row.project_name}`)
+        console.log(`  document_iname: ${row.document_iname}`)
+        console.log(`  document_description: ${row.document_description}`)
+        console.log(`  created_at: ${row.created_at}`)
+        console.log()
+      })
+    }
     
     await client.end()
     process.exit(0)

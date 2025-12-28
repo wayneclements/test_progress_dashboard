@@ -28,15 +28,23 @@ test_progress_dashboard/
 │   │   ├── 015_drop_project_documents_table.sql
 │   │   ├── 016_drop_fk_constraint.sql
 │   │   ├── 017_recreate_project_documents_table.sql
-│   │   └── 018_copy_global_documents_to_project_documents.sql│   ├── scripts/
+│   │   ├── 018_copy_global_documents_to_project_documents.sql
+│   │   ├── 019_create_project_tags_table.sql
+│   │   ├── 020_create_document_tags_table.sql
+│   │   ├── 021_rename_document_id_to_document_name.sql
+│   │   ├── 022_add_document_name_to_document_tags.sql
+│   │   ├── 023_rename_document_id_column_in_global_documents.sql
+│   │   ├── 024_rename_document_id_to_document_iname.sql
+│   │   └── 025_rename_document_iname_to_document_name.sql
+│   ├── scripts/
 │   │   ├── create_db.js                  # Create PostgreSQL database
 │   │   ├── drop_db.js                    # Drop PostgreSQL database
 │   │   ├── insert_project.js             # Insert test project
 │   │   ├── query_projects.js             # Query all projects
 │   │   ├── describe_table.js             # Show table columns
 │   │   ├── insert_global_document.js     # Insert row to global_documents
-│   │   ├── query_global_document.js      # Query global_documents by document_id
-│   │   └── query_project_documents.js    # Query project_documents with aggregation
+│   │   ├── query_global_document.js      # Query global_documents
+│   │   └── query_project_documents.js    # Query project_documents
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── .env                  # Database credentials
@@ -115,8 +123,10 @@ Backend runs on `http://localhost:4000`
 **Available endpoints:**
 - `GET /api/health` - Health check
 - `GET /api/projects` - List all projects
-- `GET /api/project-documents` - List all project documents or filter by projectName query parameter
+- `GET /api/project-documents` - List documents (use `projectName` to filter)
   - Example: `GET /api/project-documents?projectName=Project%20No.%201`
+- `GET /api/document-tags` - List tags for a document (use `documentName`)
+  - Example: `GET /api/document-tags?documentName=Test%20Plan`
 
 ### Start the Frontend
 
@@ -130,9 +140,9 @@ Frontend runs on `http://localhost:3000`
 Frontend UI:
 - **Main Page:** Lists all projects on the left panel; displays selected project description on the right panel. Double-click a project to open the Project page.
 - **Project Page:**
-  - Left panel: Documents render as individual cards (rounded corners, centered text) in two columns; cards are horizontally centered in the panel.
-  - Connector lines: A solid vertical line joins the bottom center of each card to the top center of the next card below (no overlap across cards).
-  - Right panel: Shows document details (Document ID, Description) for the selected card.
+  - Left panel: Document cards in two columns; click a card to select a document.
+  - Connector lines: A solid vertical line connects stacked cards.
+  - Right panel: Shows document details and tag list for the selected document (`document_name`, description, and tags from `document_tags`).
   - Background color: Light yellow (#FFFFE0)
 
 ## Utility Scripts
@@ -172,13 +182,13 @@ node scripts/describe_table.js projects
 **Insert document to global_documents:**
 ```powershell
 cd backend
-node scripts/insert_global_document.js "Document ID" "Document Description"
+node scripts/insert_global_document.js "Document Name" "Document Description"
 ```
 
-**Query global_documents by document_id:**
+**Query global_documents:**
 ```powershell
 cd backend
-node scripts/query_global_document.js "Document ID"
+node scripts/query_global_document.js
 ```
 
 **Query project_documents with aggregation:**
@@ -231,8 +241,8 @@ CREATE TABLE global_tags (
 CREATE TABLE global_documents (
   id SERIAL PRIMARY KEY,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  document_id TEXT UNIQUE,
-  document_description TEXT UNIQUE
+  document_name TEXT,
+  document_description TEXT
 );
 ```
 
@@ -240,7 +250,7 @@ CREATE TABLE global_documents (
 |--------|------|----------|---------|
 | id | integer | NO | auto-increment |
 | created_at | timestamp | YES | CURRENT_TIMESTAMP |
-| document_id | text | YES | — |
+| document_name | text | YES | — |
 | document_description | text | YES | — |
 
 ### project_documents Table
@@ -249,24 +259,42 @@ CREATE TABLE global_documents (
 CREATE TABLE project_documents (
   id SERIAL PRIMARY KEY,
   project_name TEXT NOT NULL,
-  document_id TEXT NOT NULL,
+  document_name TEXT NOT NULL,
   document_description TEXT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_project_documents_project_name ON project_documents(project_name);
-ALTER TABLE project_documents ADD CONSTRAINT uniq_project_document_id UNIQUE (project_name, document_id);
+ALTER TABLE project_documents ADD CONSTRAINT uniq_project_document UNIQUE (project_name, document_name);
 ```
 
 | Column | Type | Nullable | Default |
 |--------|------|----------|----------|
 | id | integer | NO | auto-increment |
 | project_name | text | NO | — |
-| document_id | text | NO | — |
+| document_name | text | NO | — |
 | document_description | text | YES | — |
 | created_at | timestamp | YES | CURRENT_TIMESTAMP |
 
-**Data:** Contains all global_documents copied for each project in the projects table (CROSS JOIN). Each project has all global documents associated with it.
+**Data:** Contains all global_documents copied for each project in the projects table (CROSS JOIN). Each project has all global documents associated with it. `document_name` is the identifier used across API and UI.
+
+### document_tags Table
+
+```sql
+CREATE TABLE document_tags (
+  id SERIAL PRIMARY KEY,
+  tag_name VARCHAR,
+  document_name VARCHAR,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+| Column | Type | Nullable | Default |
+|--------|------|----------|---------|
+| id | integer | NO | auto-increment |
+| tag_name | varchar | YES | — |
+| document_name | varchar | YES | — |
+| created_at | timestamp | YES | CURRENT_TIMESTAMP |
 
 ## Architecture
 
@@ -286,9 +314,49 @@ Docker has been removed; everything runs directly on your machine.
 - Backend development uses `npm run dev` with `tsx --watch` for hot-reload.
 - `project_documents` table stores documents scoped to project names (text-based, not FK-based).
 - All global_documents are duplicated in `project_documents` for each project via CROSS JOIN migration.
-- `global_documents` contains only `id`, `created_at`, `document_id`, and `document_description` (no `title` or `content`).
-- `project_documents` contains only `id`, `project_name`, `document_id`, `document_description`, and `created_at` (no `title` or `content`).
+- `global_documents` contains only `id`, `created_at`, `document_name`, and `document_description` (no `title` or `content`).
+- `project_documents` contains only `id`, `project_name`, `document_name`, `document_description`, and `created_at` (no `title` or `content`).
+## PostgreSQL Access via psql
 
+You can access your PostgreSQL database directly using `psql`:
+
+```powershell
+# Set password environment variable
+$env:PGPASSWORD='its'
+
+# Connect to the database
+psql -U postgres -d test_process
+
+# Common commands in psql:
+\dt              # List all tables
+\d <tablename>   # Describe table structure
+SELECT * FROM <tablename>;  # Query table
+\q               # Exit psql
+```
+
+### Global Tags
+
+The `global_tags` table currently contains the following tags (15 total):
+- project_name
+- project_description
+- project_start_date
+- project_test_strategy
+- project_test_scenarios
+- project_in_scope
+- project_out_of_scope
+- project_reference
+- project_delivery_manager
+- project_delivery_date
+- test_case
+- test_case_status
+- test_case_results
+- test_status
+- test_summary
+
+To view all tags:
+```powershell
+psql -U postgres -d test_process -c "SELECT * FROM global_tags;"
+```
 ## Troubleshooting
 
 - Frontend “refused to connect”:

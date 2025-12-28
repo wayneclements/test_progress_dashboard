@@ -23,22 +23,27 @@ function createClient() {
 }
 
 async function main() {
-  const documentId = process.argv[2] || 'Test Plan'
   const client = createClient()
   try {
     await client.connect()
     const sql = `
-      SELECT id, title, document_id, document_description, created_at, content
+      SELECT id, document_name, document_description, created_at
       FROM global_documents
-      WHERE document_id = $1
-      ORDER BY id DESC
-      LIMIT 10
+      ORDER BY id
     `
-    const result = await client.query(sql, [documentId])
+    const result = await client.query(sql)
     if (result.rows.length === 0) {
-      console.log(`No rows found with document_id = ${documentId}`)
+      console.log('No rows found in global_documents table.')
     } else {
-      console.table(result.rows)
+      console.log(`\nFound ${result.rows.length} row(s) in global_documents table:\n`)
+      result.rows.forEach((row, idx) => {
+        console.log(`Row ${idx + 1}:`)
+        console.log(`  id: ${row.id}`)
+        console.log(`  document_name: ${row.document_name}`)
+        console.log(`  document_description: ${row.document_description}`)
+        console.log(`  created_at: ${row.created_at}`)
+        console.log()
+      })
     }
     await client.end()
     process.exit(0)
