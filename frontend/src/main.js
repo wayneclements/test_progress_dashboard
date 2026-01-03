@@ -60,6 +60,9 @@ function App() {
   const [selectedDocument, setSelectedDocument] = React.useState(null)
   const [documentTags, setDocumentTags] = React.useState([])
   const [tagsLoading, setTagsLoading] = React.useState(false)
+  const [projectTags, setProjectTags] = React.useState([])
+  const [projectTagsLoading, setProjectTagsLoading] = React.useState(false)
+  const [tagModal, setTagModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
 
   React.useEffect(() => {
     fetch('http://localhost:4000/api/projects')
@@ -72,7 +75,22 @@ function App() {
         setError(err.message)
         setLoading(false)
       })
+    fetchProjectTags()
   }, [])
+
+  const fetchProjectTags = () => {
+    setProjectTagsLoading(true)
+    fetch('http://localhost:4000/api/project-tags')
+      .then(res => res.json())
+      .then(data => {
+        setProjectTags(data)
+        setProjectTagsLoading(false)
+      })
+      .catch(err => {
+        console.error(err)
+        setProjectTagsLoading(false)
+      })
+  }
 
   const loadProjectDocuments = (projectName) => {
     setDocsLoading(true)
@@ -101,6 +119,59 @@ function App() {
         console.error(err)
         setTagsLoading(false)
       })
+  }
+
+  const openTagModal = (tag) => {
+    const existing = projectTags.find(pt => pt.tag_name === tag.tag_name)
+    setTagModal({
+      open: true,
+      tagName: tag.tag_name,
+      tagId: existing ? existing.id : null,
+      value: existing ? existing.tag_value || '' : '',
+      saving: false,
+      error: null
+    })
+  }
+
+  const closeTagModal = () => setTagModal({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
+
+  const saveTagValue = async () => {
+    setTagModal(prev => ({ ...prev, saving: true, error: null }))
+    try {
+      if (tagModal.tagId) {
+        await fetch(`http://localhost:4000/api/project-tags/${tagModal.tagId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_value: tagModal.value })
+        })
+      } else {
+        await fetch('http://localhost:4000/api/project-tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_name: tagModal.tagName, tag_value: tagModal.value })
+        })
+      }
+      fetchProjectTags()
+      closeTagModal()
+    } catch (err) {
+      setTagModal(prev => ({ ...prev, saving: false, error: 'Failed to save tag' }))
+    }
+  }
+
+  const deleteTagValue = async () => {
+    if (!tagModal.tagId) {
+      return closeTagModal()
+    }
+    setTagModal(prev => ({ ...prev, saving: true, error: null }))
+    try {
+      await fetch(`http://localhost:4000/api/project-tags/${tagModal.tagId}`, {
+        method: 'DELETE'
+      })
+      fetchProjectTags()
+      closeTagModal()
+    } catch (err) {
+      setTagModal(prev => ({ ...prev, saving: false, error: 'Failed to delete tag' }))
+    }
   }
 
   return React.createElement(React.Fragment, null,
@@ -209,15 +280,64 @@ function App() {
               ? React.createElement(React.Fragment, null,
                   React.createElement('p', null, React.createElement('strong', null, 'Document Name: '), selectedDocument.document_name),
                   React.createElement('p', null, React.createElement('strong', null, 'Description: '), selectedDocument.document_description || 'No description'),
-                  React.createElement('h3', { style: { marginTop: '16px' } }, 'Tags'),
                   tagsLoading && React.createElement('p', null, 'Loading tags...'),
                   !tagsLoading && documentTags.length === 0 && React.createElement('p', { style: { color: '#999' } }, 'No tags found'),
-                  !tagsLoading && documentTags.length > 0 && React.createElement('ul', { style: { listStyle: 'none', padding: 0 } },
-                    documentTags.map(t => React.createElement('li', { key: t.id, style: { padding: '8px 0', borderBottom: '1px solid #eee' } }, t.tag_name))
+                  !tagsLoading && documentTags.length > 0 && React.createElement('table', { style: { width: '100%', borderCollapse: 'collapse' } },
+                    React.createElement('thead', null,
+                      React.createElement('tr', null,
+                        React.createElement('th', { style: { textAlign: 'left', padding: '8px', borderBottom: '2px solid #ddd', fontWeight: 'bold' } }, 'Tag Name'),
+                        React.createElement('th', { style: { textAlign: 'left', padding: '8px', borderBottom: '2px solid #ddd', fontWeight: 'bold' } }, 'Value')
+                      )
+                    ),
+                    React.createElement('tbody', null,
+                      documentTags.map(t => {
+                        const projectTag = projectTags.find(pt => pt.tag_name === t.tag_name)
+                        const value = projectTag && projectTag.tag_value !== null && projectTag.tag_value !== undefined && projectTag.tag_value !== ''
+                          ? projectTag.tag_value
+                          : 'empty'
+                        return React.createElement('tr', {
+                          key: t.id,
+                          style: { cursor: 'pointer' },
+                          onDoubleClick: () => openTagModal(t)
+                        },
+                          React.createElement('td', { style: { padding: '8px', borderBottom: '1px solid #eee', textDecoration: 'underline' } }, t.tag_name),
+                          React.createElement('td', { style: { padding: '8px', borderBottom: '1px solid #eee' } }, value)
+                        )
+                      })
+                    )
                   )
                 )
               : React.createElement('p', { style: { color: '#999' } }, 'Select a document to view details')
           )
+        )
+      )
+    ),
+    tagModal.open && React.createElement('div', {
+      style: {
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20
+      }
+    },
+      React.createElement('div', {
+        style: {
+          backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '400px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: '12px'
+        }
+      },
+        React.createElement('h3', { style: { margin: 0 } }, `Edit Tag: ${tagModal.tagName}`),
+        projectTagsLoading && React.createElement('p', { style: { color: '#666', margin: 0 } }, 'Refreshing tags...'),
+        React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px' } }, 'Value'),
+        React.createElement('input', {
+          type: 'text',
+          value: tagModal.value,
+          onChange: (e) => setTagModal(prev => ({ ...prev, value: e.target.value })),
+          style: { padding: '8px', fontSize: '14px', borderRadius: '4px', border: '1px solid #ccc' }
+        }),
+        tagModal.error && React.createElement('p', { style: { color: 'red', margin: 0 } }, tagModal.error),
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' } },
+          React.createElement('button', { onClick: closeTagModal, style: { padding: '8px 12px', cursor: 'pointer' }, disabled: tagModal.saving }, 'Cancel'),
+          React.createElement('button', { onClick: deleteTagValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#f8d7da', border: '1px solid #f5c2c7' }, disabled: tagModal.saving }, tagModal.tagId ? 'Delete' : 'Discard'),
+          React.createElement('button', { onClick: saveTagValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#0d6efd', color: '#fff', border: '1px solid #0b5ed7' }, disabled: tagModal.saving }, tagModal.tagId ? 'Save' : 'Create')
         )
       )
     )
