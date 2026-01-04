@@ -74,7 +74,11 @@ app.get('/api/document-tags', async (req, res) => {
     }
     const client = await pool.connect()
     const result = await client.query(
-      'SELECT id, tag_name, document_name, created_at FROM document_tags WHERE document_name = $1 ORDER BY id ASC',
+      `SELECT dt.id, dt.tag_name, dt.document_name, dt.created_at, gt.type 
+       FROM document_tags dt 
+       LEFT JOIN global_tags gt ON dt.tag_name = gt.name 
+       WHERE dt.document_name = $1 
+       ORDER BY dt.id ASC`,
       [documentName]
     )
     client.release()

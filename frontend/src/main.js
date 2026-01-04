@@ -63,6 +63,8 @@ function App() {
   const [projectTags, setProjectTags] = React.useState([])
   const [projectTagsLoading, setProjectTagsLoading] = React.useState(false)
   const [tagModal, setTagModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
+  const [richTextModal, setRichTextModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
+  const [dateModal, setDateModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
 
   React.useEffect(() => {
     fetch('http://localhost:4000/api/projects')
@@ -123,17 +125,29 @@ function App() {
 
   const openTagModal = (tag) => {
     const existing = projectTags.find(pt => pt.tag_name === tag.tag_name)
-    setTagModal({
+    const modalData = {
       open: true,
       tagName: tag.tag_name,
       tagId: existing ? existing.id : null,
       value: existing ? existing.tag_value || '' : '',
       saving: false,
       error: null
-    })
+    }
+    
+    if (tag.type === 'rich_text') {
+      setRichTextModal(modalData)
+    } else if (tag.type === 'date') {
+      setDateModal(modalData)
+    } else {
+      setTagModal(modalData)
+    }
   }
 
   const closeTagModal = () => setTagModal({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
+
+  const closeRichTextModal = () => setRichTextModal({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
+
+  const closeDateModal = () => setDateModal({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
 
   const saveTagValue = async () => {
     setTagModal(prev => ({ ...prev, saving: true, error: null }))
@@ -171,6 +185,84 @@ function App() {
       closeTagModal()
     } catch (err) {
       setTagModal(prev => ({ ...prev, saving: false, error: 'Failed to delete tag' }))
+    }
+  }
+
+  const saveRichTextValue = async () => {
+    setRichTextModal(prev => ({ ...prev, saving: true, error: null }))
+    try {
+      if (richTextModal.tagId) {
+        await fetch(`http://localhost:4000/api/project-tags/${richTextModal.tagId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_value: richTextModal.value })
+        })
+      } else {
+        await fetch('http://localhost:4000/api/project-tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_name: richTextModal.tagName, tag_value: richTextModal.value })
+        })
+      }
+      fetchProjectTags()
+      closeRichTextModal()
+    } catch (err) {
+      setRichTextModal(prev => ({ ...prev, saving: false, error: 'Failed to save tag' }))
+    }
+  }
+
+  const deleteRichTextValue = async () => {
+    if (!richTextModal.tagId) {
+      return closeRichTextModal()
+    }
+    setRichTextModal(prev => ({ ...prev, saving: true, error: null }))
+    try {
+      await fetch(`http://localhost:4000/api/project-tags/${richTextModal.tagId}`, {
+        method: 'DELETE'
+      })
+      fetchProjectTags()
+      closeRichTextModal()
+    } catch (err) {
+      setRichTextModal(prev => ({ ...prev, saving: false, error: 'Failed to delete tag' }))
+    }
+  }
+
+  const saveDateValue = async () => {
+    setDateModal(prev => ({ ...prev, saving: true, error: null }))
+    try {
+      if (dateModal.tagId) {
+        await fetch(`http://localhost:4000/api/project-tags/${dateModal.tagId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_value: dateModal.value })
+        })
+      } else {
+        await fetch('http://localhost:4000/api/project-tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_name: dateModal.tagName, tag_value: dateModal.value })
+        })
+      }
+      fetchProjectTags()
+      closeDateModal()
+    } catch (err) {
+      setDateModal(prev => ({ ...prev, saving: false, error: 'Failed to save tag' }))
+    }
+  }
+
+  const deleteDateValue = async () => {
+    if (!dateModal.tagId) {
+      return closeDateModal()
+    }
+    setDateModal(prev => ({ ...prev, saving: true, error: null }))
+    try {
+      await fetch(`http://localhost:4000/api/project-tags/${dateModal.tagId}`, {
+        method: 'DELETE'
+      })
+      fetchProjectTags()
+      closeDateModal()
+    } catch (err) {
+      setDateModal(prev => ({ ...prev, saving: false, error: 'Failed to delete tag' }))
     }
   }
 
@@ -292,9 +384,23 @@ function App() {
                     React.createElement('tbody', null,
                       documentTags.map(t => {
                         const projectTag = projectTags.find(pt => pt.tag_name === t.tag_name)
-                        const value = projectTag && projectTag.tag_value !== null && projectTag.tag_value !== undefined && projectTag.tag_value !== ''
+                        let value = projectTag && projectTag.tag_value !== null && projectTag.tag_value !== undefined && projectTag.tag_value !== ''
                           ? projectTag.tag_value
                           : 'empty'
+                        
+                        // Format date values
+                        if (t.type === 'date' && value !== 'empty' && value) {
+                          try {
+                            const date = new Date(value)
+                            const day = String(date.getDate()).padStart(2, '0')
+                            const month = String(date.getMonth() + 1).padStart(2, '0')
+                            const year = date.getFullYear()
+                            value = `${day}/${month}/${year}`
+                          } catch (e) {
+                            // Keep original value if parsing fails
+                          }
+                        }
+                        
                         return React.createElement('tr', {
                           key: t.id,
                           style: { cursor: 'pointer' },
@@ -324,7 +430,7 @@ function App() {
           boxShadow: '0 10px 30px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: '12px'
         }
       },
-        React.createElement('h3', { style: { margin: 0 } }, `Edit Tag: ${tagModal.tagName}`),
+        React.createElement('h3', { style: { margin: 0 } }, `Edit Text Tag: ${tagModal.tagName}`),
         projectTagsLoading && React.createElement('p', { style: { color: '#666', margin: 0 } }, 'Refreshing tags...'),
         React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px' } }, 'Value'),
         React.createElement('input', {
@@ -338,6 +444,66 @@ function App() {
           React.createElement('button', { onClick: closeTagModal, style: { padding: '8px 12px', cursor: 'pointer' }, disabled: tagModal.saving }, 'Cancel'),
           React.createElement('button', { onClick: deleteTagValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#f8d7da', border: '1px solid #f5c2c7' }, disabled: tagModal.saving }, tagModal.tagId ? 'Delete' : 'Discard'),
           React.createElement('button', { onClick: saveTagValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#0d6efd', color: '#fff', border: '1px solid #0b5ed7' }, disabled: tagModal.saving }, tagModal.tagId ? 'Save' : 'Create')
+        )
+      )
+    ),
+    
+    richTextModal.open && React.createElement('div', {
+      style: {
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20
+      }
+    },
+      React.createElement('div', {
+        style: {
+          backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '600px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: '12px'
+        }
+      },
+        React.createElement('h3', { style: { margin: 0 } }, `Edit Rich Text Tag: ${richTextModal.tagName}`),
+        projectTagsLoading && React.createElement('p', { style: { color: '#666', margin: 0 } }, 'Refreshing tags...'),
+        React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px' } }, 'Value'),
+        React.createElement('textarea', {
+          value: richTextModal.value,
+          onChange: (e) => setRichTextModal(prev => ({ ...prev, value: e.target.value })),
+          rows: 10,
+          style: { padding: '8px', fontSize: '14px', borderRadius: '4px', border: '1px solid #ccc', fontFamily: 'monospace', resize: 'vertical' }
+        }),
+        richTextModal.error && React.createElement('p', { style: { color: 'red', margin: 0 } }, richTextModal.error),
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' } },
+          React.createElement('button', { onClick: closeRichTextModal, style: { padding: '8px 12px', cursor: 'pointer' }, disabled: richTextModal.saving }, 'Cancel'),
+          React.createElement('button', { onClick: deleteRichTextValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#f8d7da', border: '1px solid #f5c2c7' }, disabled: richTextModal.saving }, richTextModal.tagId ? 'Delete' : 'Discard'),
+          React.createElement('button', { onClick: saveRichTextValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#0d6efd', color: '#fff', border: '1px solid #0b5ed7' }, disabled: richTextModal.saving }, richTextModal.tagId ? 'Save' : 'Create')
+        )
+      )
+    ),
+    
+    dateModal.open && React.createElement('div', {
+      style: {
+        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20
+      }
+    },
+      React.createElement('div', {
+        style: {
+          backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '400px',
+          boxShadow: '0 10px 30px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: '12px'
+        }
+      },
+        React.createElement('h3', { style: { margin: 0 } }, `Edit Date Tag: ${dateModal.tagName}`),
+        projectTagsLoading && React.createElement('p', { style: { color: '#666', margin: 0 } }, 'Refreshing tags...'),
+        React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px' } }, 'Value'),
+        React.createElement('input', {
+          type: 'date',
+          value: dateModal.value,
+          onChange: (e) => setDateModal(prev => ({ ...prev, value: e.target.value })),
+          style: { padding: '8px', fontSize: '14px', borderRadius: '4px', border: '1px solid #ccc' }
+        }),
+        dateModal.error && React.createElement('p', { style: { color: 'red', margin: 0 } }, dateModal.error),
+        React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' } },
+          React.createElement('button', { onClick: closeDateModal, style: { padding: '8px 12px', cursor: 'pointer' }, disabled: dateModal.saving }, 'Cancel'),
+          React.createElement('button', { onClick: deleteDateValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#f8d7da', border: '1px solid #f5c2c7' }, disabled: dateModal.saving }, dateModal.tagId ? 'Delete' : 'Discard'),
+          React.createElement('button', { onClick: saveDateValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#0d6efd', color: '#fff', border: '1px solid #0b5ed7' }, disabled: dateModal.saving }, dateModal.tagId ? 'Save' : 'Create')
         )
       )
     )
