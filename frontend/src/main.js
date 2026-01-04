@@ -49,6 +49,80 @@ function drawConnectors(container) {
   container.style.zIndex = '1'
 }
 
+function RichTextModal({ richTextModal, projectTagsLoading, closeRichTextModal, deleteRichTextValue, saveRichTextValue, setRichTextModal }) {
+  const editorRef = React.useRef(null)
+  const quillRef = React.useRef(null)
+
+  React.useEffect(() => {
+    if (richTextModal.open && editorRef.current && !quillRef.current) {
+      // Initialize Quill editor
+      quillRef.current = new Quill(editorRef.current, {
+        theme: 'snow',
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'color': [] }, { 'background': [] }],
+            ['link'],
+            ['clean']
+          ]
+        }
+      })
+      
+      // Set initial content
+      quillRef.current.root.innerHTML = richTextModal.value || ''
+      
+      // Listen for text changes
+      quillRef.current.on('text-change', () => {
+        const html = quillRef.current.root.innerHTML
+        setRichTextModal(prev => ({ ...prev, value: html }))
+      })
+    }
+    
+    // Update content when modal value changes externally
+    if (quillRef.current && richTextModal.open) {
+      const currentHtml = quillRef.current.root.innerHTML
+      if (currentHtml !== richTextModal.value) {
+        quillRef.current.root.innerHTML = richTextModal.value || ''
+      }
+    }
+    
+    // Cleanup when modal closes
+    if (!richTextModal.open && quillRef.current) {
+      quillRef.current = null
+    }
+  }, [richTextModal.open, richTextModal.value])
+
+  return React.createElement('div', {
+    style: {
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20
+    }
+  },
+    React.createElement('div', {
+      style: {
+        backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '700px',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: '12px'
+      }
+    },
+      React.createElement('h3', { style: { margin: 0 } }, `Edit Rich Text Tag: ${richTextModal.tagName}`),
+      projectTagsLoading && React.createElement('p', { style: { color: '#666', margin: 0 } }, 'Refreshing tags...'),
+      React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px' } }, 'Value'),
+      React.createElement('div', {
+        ref: editorRef,
+        style: { height: '300px', backgroundColor: '#fff' }
+      }),
+      richTextModal.error && React.createElement('p', { style: { color: 'red', margin: 0 } }, richTextModal.error),
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' } },
+        React.createElement('button', { onClick: closeRichTextModal, style: { padding: '8px 12px', cursor: 'pointer' }, disabled: richTextModal.saving }, 'Cancel'),
+        React.createElement('button', { onClick: deleteRichTextValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#f8d7da', border: '1px solid #f5c2c7' }, disabled: richTextModal.saving }, richTextModal.tagId ? 'Delete' : 'Discard'),
+        React.createElement('button', { onClick: saveRichTextValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#0d6efd', color: '#fff', border: '1px solid #0b5ed7' }, disabled: richTextModal.saving }, richTextModal.tagId ? 'Save' : 'Create')
+      )
+    )
+  )
+}
+
 function App() {
   const [projects, setProjects] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -401,6 +475,15 @@ function App() {
                           }
                         }
                         
+                        // Format rich text values - strip HTML and truncate to 50 characters
+                        if (t.type === 'rich_text' && value !== 'empty' && value) {
+                          // Create a temporary element to strip HTML tags
+                          const tempDiv = document.createElement('div')
+                          tempDiv.innerHTML = value
+                          const plainText = tempDiv.textContent || tempDiv.innerText || ''
+                          value = plainText.substring(0, 50) + (plainText.length > 50 ? '...' : '')
+                        }
+                        
                         return React.createElement('tr', {
                           key: t.id,
                           style: { cursor: 'pointer' },
@@ -448,35 +531,14 @@ function App() {
       )
     ),
     
-    richTextModal.open && React.createElement('div', {
-      style: {
-        position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20
-      }
-    },
-      React.createElement('div', {
-        style: {
-          backgroundColor: '#fff', padding: '20px', borderRadius: '8px', width: '600px',
-          boxShadow: '0 10px 30px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column', gap: '12px'
-        }
-      },
-        React.createElement('h3', { style: { margin: 0 } }, `Edit Rich Text Tag: ${richTextModal.tagName}`),
-        projectTagsLoading && React.createElement('p', { style: { color: '#666', margin: 0 } }, 'Refreshing tags...'),
-        React.createElement('label', { style: { fontWeight: 'bold', fontSize: '14px' } }, 'Value'),
-        React.createElement('textarea', {
-          value: richTextModal.value,
-          onChange: (e) => setRichTextModal(prev => ({ ...prev, value: e.target.value })),
-          rows: 10,
-          style: { padding: '8px', fontSize: '14px', borderRadius: '4px', border: '1px solid #ccc', fontFamily: 'monospace', resize: 'vertical' }
-        }),
-        richTextModal.error && React.createElement('p', { style: { color: 'red', margin: 0 } }, richTextModal.error),
-        React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' } },
-          React.createElement('button', { onClick: closeRichTextModal, style: { padding: '8px 12px', cursor: 'pointer' }, disabled: richTextModal.saving }, 'Cancel'),
-          React.createElement('button', { onClick: deleteRichTextValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#f8d7da', border: '1px solid #f5c2c7' }, disabled: richTextModal.saving }, richTextModal.tagId ? 'Delete' : 'Discard'),
-          React.createElement('button', { onClick: saveRichTextValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#0d6efd', color: '#fff', border: '1px solid #0b5ed7' }, disabled: richTextModal.saving }, richTextModal.tagId ? 'Save' : 'Create')
-        )
-      )
-    ),
+    richTextModal.open && React.createElement(RichTextModal, {
+      richTextModal,
+      projectTagsLoading,
+      closeRichTextModal,
+      deleteRichTextValue,
+      saveRichTextValue,
+      setRichTextModal
+    }),
     
     dateModal.open && React.createElement('div', {
       style: {

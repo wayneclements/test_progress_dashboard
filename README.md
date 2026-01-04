@@ -35,7 +35,8 @@ test_progress_dashboard/
 │   │   ├── 022_add_document_name_to_document_tags.sql
 │   │   ├── 023_rename_document_id_column_in_global_documents.sql
 │   │   ├── 024_rename_document_id_to_document_iname.sql
-│   │   └── 025_rename_document_iname_to_document_name.sql
+│   │   ├── 025_rename_document_iname_to_document_name.sql
+│   │   └── 026_add_type_to_global_tags.sql
 │   ├── scripts/
 │   │   ├── create_db.js                  # Create PostgreSQL database
 │   │   ├── drop_db.js                    # Drop PostgreSQL database
@@ -44,7 +45,11 @@ test_progress_dashboard/
 │   │   ├── describe_table.js             # Show table columns
 │   │   ├── insert_global_document.js     # Insert row to global_documents
 │   │   ├── query_global_document.js      # Query global_documents
-│   │   └── query_project_documents.js    # Query project_documents
+│   │   ├── query_project_documents.js    # Query project_documents
+│   │   ├── query_global_tags.js          # Query global_tags
+│   │   ├── query_project_tags.js         # Query project_tags
+│   │   ├── query_document_tags.js        # Query document_tags
+│   │   └── update_global_tag_type.js     # Update tag type in global_tags
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── .env                  # Database credentials
@@ -125,8 +130,13 @@ Backend runs on `http://localhost:4000`
 - `GET /api/projects` - List all projects
 - `GET /api/project-documents` - List documents (use `projectName` to filter)
   - Example: `GET /api/project-documents?projectName=Project%20No.%201`
-- `GET /api/document-tags` - List tags for a document (use `documentName`)
+- `GET /api/document-tags` - List tags for a document with type information (use `documentName`)
   - Example: `GET /api/document-tags?documentName=Test%20Plan`
+  - Returns: `{ id, tag_name, document_name, created_at, type }`
+- `GET /api/project-tags` - List all project tag values
+- `POST /api/project-tags` - Create a new project tag value
+- `PUT /api/project-tags/:id` - Update a project tag value
+- `DELETE /api/project-tags/:id` - Delete a project tag value
 
 ### Start the Frontend
 
@@ -143,6 +153,16 @@ Frontend UI:
   - Left panel: Document cards in two columns; click a card to select a document.
   - Connector lines: A solid vertical line connects stacked cards.
   - Right panel: Shows document details and tag list for the selected document (`document_name`, description, and tags from `document_tags`).
+  - Tag editing: Double-click a tag row to edit its value. Different modal types appear based on the tag's type:
+    - **Text tags** (`type = 'text'`): "Edit Text Tag" modal with a text input field
+    - **Rich text tags** (`type = 'rich_text'`): "Edit Rich Text Tag" modal with Quill WYSIWYG editor (700px wide, 300px height)
+      - Features: Headers, bold, italic, underline, strike-through, lists, text/background colors, links, and clear formatting
+      - Saves content as HTML
+    - **Date tags** (`type = 'date'`): "Edit Date Tag" modal with a date picker input
+  - Value display formats:
+    - Dates: Displayed in `dd/MM/yyyy` format
+    - Rich text: First 50 characters of plain text (HTML tags stripped) with "..." if longer
+    - Text: Full value or "empty" if not set
   - Background color: Light yellow (#FFFFE0)
 
 ## Utility Scripts
@@ -197,6 +217,31 @@ cd backend
 node scripts/query_project_documents.js
 ```
 
+**Query global_tags:**
+```powershell
+cd backend
+node scripts/query_global_tags.js
+```
+
+**Query project_tags:**
+```powershell
+cd backend
+node scripts/query_project_tags.js
+```
+
+**Query document_tags:**
+```powershell
+cd backend
+node scripts/query_document_tags.js
+```
+
+**Update tag type in global_tags:**
+```powershell
+cd backend
+# Edit the script first to set the tag name and type you want
+node scripts/update_global_tag_type.js
+```
+
 ## Database Schema
 
 ### Projects Table
@@ -221,11 +266,12 @@ CREATE TABLE projects (
 
 ### global_tags Table
 
-```
+```sql
 CREATE TABLE global_tags (
   id SERIAL PRIMARY KEY,
   name VARCHAR(255) NOT NULL UNIQUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  type TEXT
 );
 ```
 
@@ -234,6 +280,12 @@ CREATE TABLE global_tags (
 | id | integer | NO | auto-increment |
 | name | varchar(255) | NO | — |
 | created_at | timestamp | YES | CURRENT_TIMESTAMP |
+| type | text | YES | — |
+
+The `type` column defines how the tag value should be edited and displayed:
+- `'text'` - Standard text input field
+- `'rich_text'` - Multiline textarea for longer content
+- `'date'` - Date picker input (displays in dd/MM/yyyy format)
 
 ### global_documents Table
 
@@ -300,6 +352,7 @@ CREATE TABLE document_tags (
 
 - **Backend:** Express.js + TypeScript on port 4000, using `tsx` for TypeScript execution
 - **Frontend:** React 18 (via CDN) with Babel for JSX transpilation, served by Express on port 3000
+  - **Rich Text Editor:** Quill 1.3.6 (via CDN) for WYSIWYG editing of rich text tags
 - **Database:** Local PostgreSQL with SQL migrations
 - **Dependencies:** Cleaned of deprecated packages (removed `ts-node-dev` and transitive `inflight` dependency)
 
@@ -316,6 +369,12 @@ Docker has been removed; everything runs directly on your machine.
 - All global_documents are duplicated in `project_documents` for each project via CROSS JOIN migration.
 - `global_documents` contains only `id`, `created_at`, `document_name`, and `document_description` (no `title` or `content`).
 - `project_documents` contains only `id`, `project_name`, `document_name`, `document_description`, and `created_at` (no `title` or `content`).
+- Tag types in `global_tags` determine the UI behavior:
+  - Text tags use simple input fields
+  - Rich text tags use Quill WYSIWYG editor with formatting toolbar (saves as HTML)
+  - Date tags use date pickers and display in dd/MM/yyyy format
+- Rich text display: HTML tags are stripped and only the first 50 characters of plain text are shown in the table, with "..." appended if longer. Full content is editable in the modal.
+- The `document-tags` API endpoint joins with `global_tags` to include the `type` field for proper modal rendering.
 ## PostgreSQL Access via psql
 
 You can access your PostgreSQL database directly using `psql`:
@@ -337,25 +396,35 @@ SELECT * FROM <tablename>;  # Query table
 ### Global Tags
 
 The `global_tags` table currently contains the following tags (15 total):
-- project_name
-- project_description
-- project_start_date
-- project_test_strategy
-- project_test_scenarios
-- project_in_scope
-- project_out_of_scope
-- project_reference
-- project_delivery_manager
-- project_delivery_date
-- test_case
-- test_case_status
-- test_case_results
-- test_status
-- test_summary
+
+| Tag Name | Type |
+|----------|------|
+| project_name | text |
+| project_description | rich_text |
+| project_start_date | date |
+| project_test_strategy | text |
+| project_test_scenarios | text |
+| project_in_scope | text |
+| project_out_of_scope | text |
+| project_reference | text |
+| project_delivery_manager | text |
+| project_delivery_date | date |
+| test_case | text |
+| test_case_status | text |
+| test_case_results | text |
+| test_status | text |
+| test_summary | text |
 
 To view all tags:
 ```powershell
-psql -U postgres -d test_process -c "SELECT * FROM global_tags;"
+psql -U postgres -d test_process -c "SELECT id, name, type FROM global_tags;"
+```
+
+To update a tag's type:
+```powershell
+cd backend
+# Edit scripts/update_global_tag_type.js to set the desired tag name and type
+node scripts/update_global_tag_type.js
 ```
 ## Troubleshooting
 
