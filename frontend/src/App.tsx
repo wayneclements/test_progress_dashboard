@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 
 interface Project {
   id: number
@@ -30,12 +30,22 @@ interface GlobalTag {
   created_at: string
 }
 
+interface DocumentTag {
+  id: number
+  tag_name: string
+  document_name: string
+  created_at: string
+  type?: string
+}
+
 export default function App() {
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProject, setSelectedProject] = useState<string>('')
   const [documents, setDocuments] = useState<ProjectDocument[]>([])
+  const [selectedDocument, setSelectedDocument] = useState<string>('')
   const [projectTags, setProjectTags] = useState<ProjectTag[]>([])
   const [globalTags, setGlobalTags] = useState<GlobalTag[]>([])
+  const [documentTags, setDocumentTags] = useState<DocumentTag[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
@@ -49,6 +59,8 @@ export default function App() {
       fetchDocuments(selectedProject)
     } else {
       setDocuments([])
+      setDocumentTags([])
+      setSelectedDocument('')
     }
   }, [selectedProject])
 
@@ -64,14 +76,46 @@ export default function App() {
 
   const fetchDocuments = async (projectName: string) => {
     setLoading(true)
+    setDocumentTags([])
+    setSelectedDocument('')
     try {
       const response = await fetch(`http://localhost:4000/api/project-documents?projectName=${encodeURIComponent(projectName)}`)
       const data = await response.json()
       setDocuments(data)
+      await fetchDocumentTagsForDocuments(data)
     } catch (err) {
       console.error('Error fetching documents:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchDocumentTagsForDocuments = async (docs: ProjectDocument[]) => {
+    if (docs.length === 0) {
+      setDocumentTags([])
+      return
+    }
+
+    try {
+      const tagResults = await Promise.all(
+        docs.map(async (doc) => {
+          const response = await fetch(
+            `http://localhost:4000/api/document-tags?documentName=${encodeURIComponent(doc.document_name)}`
+          )
+
+          if (!response.ok) {
+            throw new Error(`Failed to fetch document tags for ${doc.document_name}`)
+          }
+
+          const data = await response.json()
+          return data as DocumentTag[]
+        })
+      )
+
+      setDocumentTags(tagResults.flat())
+    } catch (err) {
+      console.error('Error fetching document tags:', err)
+      setDocumentTags([])
     }
   }
 
@@ -84,6 +128,16 @@ export default function App() {
       console.error('Error fetching project tags:', err)
     }
   }
+
+  const documentTagsByName = useMemo(() => {
+    const map = new Map<string, DocumentTag>()
+    documentTags.forEach((tag) => {
+      if (!map.has(tag.tag_name)) {
+        map.set(tag.tag_name, tag)
+      }
+    })
+    return Array.from(map.values())
+  }, [documentTags])
 
   const fetchGlobalTags = async () => {
     try {
@@ -126,10 +180,10 @@ export default function App() {
   }
 
   return (
-    <div style={{padding: 20, display: 'flex', gap: 20}}>
-      <div style={{flex: 1}}>
-        <h1>Project Dashboard</h1>
-        <div style={{marginBottom: 20}}>
+    <div style={{padding: 20, height: '100vh', display: 'flex', flexDirection: 'column', gap: 20}}>
+      <div>
+        <h1 style={{margin: 0, marginBottom: 20}}>Project Dashboard</h1>
+        <div>
           <label htmlFor="project-select" style={{marginRight: 10, fontWeight: 'bold'}}>
             Select Project:
           </label>
@@ -147,76 +201,126 @@ export default function App() {
             ))}
           </select>
         </div>
+      </div>
 
-        {selectedProject && (
-          <div style={{border: '1px solid #ccc', padding: 20, borderRadius: 8}}>
-            <h2>Documents for: {selectedProject}</h2>
+      {selectedProject && (
+        <div style={{flex: 1, display: 'flex', gap: 20, overflow: 'hidden'}}>
+          {/* Left Panel - Document List */}
+          <div style={{width: 300, borderRight: '2px solid #ccc', paddingRight: 20, overflowY: 'auto'}}>
+            <h2 style={{marginTop: 0}}>Documents</h2>
             {loading ? (
               <p>Loading documents...</p>
             ) : documents.length === 0 ? (
-              <p style={{color: '#666'}}>No documents found for this project.</p>
+              <p style={{color: '#666'}}>No documents found.</p>
             ) : (
-              <ul style={{listStyle: 'none', padding: 0}}>
+              <div style={{display: 'flex', flexDirection: 'column', gap: 4}}>
                 {documents.map((doc) => (
-                  <li 
-                    key={doc.id} 
+                  <button
+                    key={doc.id}
+                    onClick={() => setSelectedDocument(doc.document_name)}
                     style={{
                       padding: 12,
-                      borderBottom: '1px solid #eee',
-                      fontSize: 16
+                      border: '1px solid #ccc',
+                      borderRadius: 6,
+                      backgroundColor: selectedDocument === doc.document_name ? '#007acc' : '#f5f5f5',
+                      color: selectedDocument === doc.document_name ? 'white' : 'black',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: 14,
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedDocument !== doc.document_name) {
+                        e.currentTarget.style.backgroundColor = '#e0e0e0'
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedDocument !== doc.document_name) {
+                        e.currentTarget.style.backgroundColor = '#f5f5f5'
+                      }
                     }}
                   >
                     {doc.document_name}
-                  </li>
+                  </button>
                 ))}
-              </ul>
+              </div>
             )}
           </div>
-        )}
-      </div>
 
-      <div style={{width: 400, borderLeft: '2px solid #ccc', paddingLeft: 20}}>
-        <h2>Project Tags</h2>
-        <p style={{fontSize: 14, color: '#666', marginBottom: 15}}>
-          Double-click a tag to edit its value
-        </p>
-        {projectTags.length === 0 ? (
-          <p style={{color: '#666'}}>No project tags found.</p>
-        ) : (
-          <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-            {projectTags.map((tag) => (
-              <button
-                key={tag.id}
-                onDoubleClick={() => handleTagDoubleClick(tag)}
-                style={{
-                  padding: 12,
-                  border: '1px solid #ccc',
-                  borderRadius: 6,
-                  backgroundColor: '#e6f0ff',
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  transition: 'all 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#d2e4ff'
-                  e.currentTarget.style.borderColor = '#999'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#e6f0ff'
-                  e.currentTarget.style.borderColor = '#ccc'
-                }}
-              >
-                <div style={{fontWeight: 'bold', fontSize: 14, marginBottom: 4}}>
-                  {tag.tag_name}
+          {/* Center Panel - Document Details */}
+          <div style={{flex: 1, overflowY: 'auto', padding: 20}}>
+            {selectedDocument ? (
+              <div>
+                <h2 style={{marginTop: 0}}>Document: {selectedDocument}</h2>
+                <div style={{marginTop: 20}}>
+                  <h3 style={{color: '#666', fontSize: 16, marginBottom: 8}}>Description:</h3>
+                  <p style={{fontSize: 14, lineHeight: 1.6}}>
+                    {documents.find(d => d.document_name === selectedDocument)?.document_description || 'No description available'}
+                  </p>
                 </div>
-                <div style={{fontSize: 14, color: '#555'}}>
-                  {tag.tag_value || <span style={{fontStyle: 'italic', color: '#999'}}>No value</span>}
-                </div>
-              </button>
-            ))}
+              </div>
+            ) : (
+              <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#999'}}>
+                <p>Select a document from the left panel</p>
+              </div>
+            )}
           </div>
-        )}
-      </div>
+
+          {/* Right Panel - Document Tags */}
+          <div style={{width: 400, borderLeft: '2px solid #ccc', paddingLeft: 20, overflowY: 'auto'}}>
+            <h2 style={{marginTop: 0}}>Document Tags</h2>
+            <p style={{fontSize: 14, color: '#666', marginBottom: 15}}>
+              Showing tag_name from document_tags and tag_value from project_tags (if present)
+            </p>
+            {documentTagsByName.length === 0 ? (
+              <p style={{color: '#666'}}>No document tags found for this project.</p>
+            ) : (
+              <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+                {documentTagsByName.map((tag) => {
+                  const matchingProjectTag = projectTags.find((pt) => pt.tag_name === tag.tag_name)
+                  const tagValue = matchingProjectTag?.tag_value
+                  const isEditable = Boolean(matchingProjectTag)
+
+                  return (
+                    <button
+                      key={tag.tag_name}
+                      onDoubleClick={() => matchingProjectTag && handleTagDoubleClick(matchingProjectTag)}
+                      disabled={!isEditable}
+                      style={{
+                        padding: 12,
+                        border: '1px solid #ccc',
+                        borderRadius: 6,
+                        backgroundColor: isEditable ? '#e6f0ff' : '#f5f5f5',
+                        cursor: isEditable ? 'pointer' : 'not-allowed',
+                        textAlign: 'left',
+                        transition: 'all 0.2s',
+                        opacity: isEditable ? 1 : 0.7
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isEditable) return
+                        e.currentTarget.style.backgroundColor = '#d2e4ff'
+                        e.currentTarget.style.borderColor = '#999'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = isEditable ? '#e6f0ff' : '#f5f5f5'
+                        e.currentTarget.style.borderColor = '#ccc'
+                      }}
+                      title={isEditable ? 'Double-click to edit project tag value' : 'No project tag value to edit'}
+                    >
+                      <div style={{fontWeight: 'bold', fontSize: 14, marginBottom: 4}}>
+                        {tag.tag_name}
+                      </div>
+                      <div style={{fontSize: 14, color: '#555'}}>
+                        {tagValue || <span style={{fontStyle: 'italic', color: '#999'}}>No value</span>}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

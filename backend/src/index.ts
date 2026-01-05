@@ -50,12 +50,19 @@ app.get('/api/project-documents', async (req, res) => {
     let result
     if (projectName) {
       result = await client.query(
-        'SELECT id, project_name, document_name, document_description FROM project_documents WHERE project_name = $1 ORDER BY id ASC',
+        `SELECT pd.id, pd.project_name, pd.document_name, gd.document_description 
+         FROM project_documents pd 
+         LEFT JOIN global_documents gd ON pd.document_name = gd.document_name 
+         WHERE pd.project_name = $1 
+         ORDER BY pd.id ASC`,
         [projectName]
       )
     } else {
       result = await client.query(
-        'SELECT id, project_name, document_name, document_description FROM project_documents ORDER BY id ASC'
+        `SELECT pd.id, pd.project_name, pd.document_name, gd.document_description 
+         FROM project_documents pd 
+         LEFT JOIN global_documents gd ON pd.document_name = gd.document_name 
+         ORDER BY pd.id ASC`
       )
     }
     client.release()
@@ -88,13 +95,24 @@ app.get('/api/document-tags', async (req, res) => {
   }
 })
 
-// Get all project tags
+// Get project tags (optionally filtered by project name)
 app.get('/api/project-tags', async (req, res) => {
   try {
+    const projectName = req.query.projectName as string | undefined
     const client = await pool.connect()
-    const result = await client.query(
-      'SELECT id, tag_name, tag_value, created_at FROM project_tags ORDER BY id ASC'
-    )
+    let result
+
+    if (projectName) {
+      result = await client.query(
+        'SELECT id, tag_name, tag_value, project_name, created_at FROM project_tags WHERE project_name = $1 ORDER BY id ASC',
+        [projectName]
+      )
+    } else {
+      result = await client.query(
+        'SELECT id, tag_name, tag_value, project_name, created_at FROM project_tags ORDER BY id ASC'
+      )
+    }
+
     client.release()
     res.json(result.rows)
   } catch (err) {
@@ -105,16 +123,16 @@ app.get('/api/project-tags', async (req, res) => {
 // Create a project tag
 app.post('/api/project-tags', async (req, res) => {
   try {
-    const { tag_name, tag_value } = req.body
+    const { tag_name, tag_value, project_name } = req.body
 
-    if (!tag_name) {
-      return res.status(400).json({ error: 'Missing tag_name in request body' })
+    if (!tag_name || !project_name) {
+      return res.status(400).json({ error: 'Missing tag_name or project_name in request body' })
     }
 
     const client = await pool.connect()
     const result = await client.query(
-      'INSERT INTO project_tags (tag_name, tag_value) VALUES ($1, $2) RETURNING id, tag_name, tag_value, created_at',
-      [tag_name, tag_value || null]
+      'INSERT INTO project_tags (tag_name, tag_value, project_name) VALUES ($1, $2, $3) RETURNING id, tag_name, tag_value, project_name, created_at',
+      [tag_name, tag_value || null, project_name]
     )
     client.release()
     res.status(201).json(result.rows[0])

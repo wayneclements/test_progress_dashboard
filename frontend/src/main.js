@@ -49,6 +49,18 @@ function drawConnectors(container) {
   container.style.zIndex = '1'
 }
 
+// Normalize any date-ish value to YYYY-MM-DD for HTML date inputs / API
+function normalizeDateInput(value) {
+  if (!value) return ''
+  try {
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toISOString().slice(0, 10)
+  } catch (e) {
+    return ''
+  }
+}
+
 function RichTextModal({ richTextModal, projectTagsLoading, closeRichTextModal, deleteRichTextValue, saveRichTextValue, setRichTextModal }) {
   const editorRef = React.useRef(null)
   const quillRef = React.useRef(null)
@@ -140,6 +152,8 @@ function App() {
   const [richTextModal, setRichTextModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
   const [dateModal, setDateModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
 
+  const currentProjectName = selectedProject?.name || ''
+
   React.useEffect(() => {
     fetch('http://localhost:4000/api/projects')
       .then(res => res.json())
@@ -151,12 +165,16 @@ function App() {
         setError(err.message)
         setLoading(false)
       })
-    fetchProjectTags()
   }, [])
 
-  const fetchProjectTags = () => {
+  const loadProjectTags = (projectName) => {
+    if (!projectName) {
+      setProjectTags([])
+      return
+    }
+
     setProjectTagsLoading(true)
-    fetch('http://localhost:4000/api/project-tags')
+    fetch(`http://localhost:4000/api/project-tags?projectName=${encodeURIComponent(projectName)}`)
       .then(res => res.json())
       .then(data => {
         setProjectTags(data)
@@ -164,9 +182,18 @@ function App() {
       })
       .catch(err => {
         console.error(err)
+        setProjectTags([])
         setProjectTagsLoading(false)
       })
   }
+
+  React.useEffect(() => {
+    if (selectedProject?.name) {
+      loadProjectTags(selectedProject.name)
+    } else {
+      setProjectTags([])
+    }
+  }, [selectedProject?.name])
 
   const loadProjectDocuments = (projectName) => {
     setDocsLoading(true)
@@ -199,11 +226,12 @@ function App() {
 
   const openTagModal = (tag) => {
     const existing = projectTags.find(pt => pt.tag_name === tag.tag_name)
+    const existingDate = tag.type === 'date' && existing?.tag_value ? normalizeDateInput(existing.tag_value) : ''
     const modalData = {
       open: true,
       tagName: tag.tag_name,
       tagId: existing ? existing.id : null,
-      value: existing ? existing.tag_value || '' : '',
+      value: tag.type === 'date' ? existingDate : (existing ? existing.tag_value || '' : ''),
       saving: false,
       error: null
     }
@@ -224,6 +252,11 @@ function App() {
   const closeDateModal = () => setDateModal({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
 
   const saveTagValue = async () => {
+    if (!currentProjectName) {
+      setTagModal(prev => ({ ...prev, error: 'Select a project first' }))
+      return
+    }
+
     setTagModal(prev => ({ ...prev, saving: true, error: null }))
     try {
       if (tagModal.tagId) {
@@ -236,10 +269,10 @@ function App() {
         await fetch('http://localhost:4000/api/project-tags', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_name: tagModal.tagName, tag_value: tagModal.value })
+          body: JSON.stringify({ tag_name: tagModal.tagName, tag_value: tagModal.value, project_name: currentProjectName })
         })
       }
-      fetchProjectTags()
+      loadProjectTags(currentProjectName)
       closeTagModal()
     } catch (err) {
       setTagModal(prev => ({ ...prev, saving: false, error: 'Failed to save tag' }))
@@ -255,7 +288,7 @@ function App() {
       await fetch(`http://localhost:4000/api/project-tags/${tagModal.tagId}`, {
         method: 'DELETE'
       })
-      fetchProjectTags()
+      loadProjectTags(currentProjectName)
       closeTagModal()
     } catch (err) {
       setTagModal(prev => ({ ...prev, saving: false, error: 'Failed to delete tag' }))
@@ -263,6 +296,11 @@ function App() {
   }
 
   const saveRichTextValue = async () => {
+    if (!currentProjectName) {
+      setRichTextModal(prev => ({ ...prev, error: 'Select a project first' }))
+      return
+    }
+
     setRichTextModal(prev => ({ ...prev, saving: true, error: null }))
     try {
       if (richTextModal.tagId) {
@@ -275,10 +313,10 @@ function App() {
         await fetch('http://localhost:4000/api/project-tags', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_name: richTextModal.tagName, tag_value: richTextModal.value })
+          body: JSON.stringify({ tag_name: richTextModal.tagName, tag_value: richTextModal.value, project_name: currentProjectName })
         })
       }
-      fetchProjectTags()
+      loadProjectTags(currentProjectName)
       closeRichTextModal()
     } catch (err) {
       setRichTextModal(prev => ({ ...prev, saving: false, error: 'Failed to save tag' }))
@@ -294,7 +332,7 @@ function App() {
       await fetch(`http://localhost:4000/api/project-tags/${richTextModal.tagId}`, {
         method: 'DELETE'
       })
-      fetchProjectTags()
+      loadProjectTags(currentProjectName)
       closeRichTextModal()
     } catch (err) {
       setRichTextModal(prev => ({ ...prev, saving: false, error: 'Failed to delete tag' }))
@@ -302,25 +340,39 @@ function App() {
   }
 
   const saveDateValue = async () => {
+    const normalizedValue = normalizeDateInput(dateModal.value)
+    if (!normalizedValue) {
+      setDateModal(prev => ({ ...prev, error: 'Please select a valid date' }))
+      return
+    }
+
+    if (!currentProjectName) {
+      setDateModal(prev => ({ ...prev, error: 'Select a project first' }))
+      return
+    }
+
     setDateModal(prev => ({ ...prev, saving: true, error: null }))
     try {
-      if (dateModal.tagId) {
-        await fetch(`http://localhost:4000/api/project-tags/${dateModal.tagId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_value: dateModal.value })
-        })
-      } else {
-        await fetch('http://localhost:4000/api/project-tags', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ tag_name: dateModal.tagName, tag_value: dateModal.value })
-        })
+      const endpoint = dateModal.tagId
+        ? `http://localhost:4000/api/project-tags/${dateModal.tagId}`
+        : 'http://localhost:4000/api/project-tags'
+
+      const method = dateModal.tagId ? 'PUT' : 'POST'
+      const response = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tag_name: dateModal.tagName, tag_value: normalizedValue, project_name: currentProjectName })
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(errorText || 'Failed to save date tag')
       }
-      fetchProjectTags()
+
+      loadProjectTags(currentProjectName)
       closeDateModal()
     } catch (err) {
-      setDateModal(prev => ({ ...prev, saving: false, error: 'Failed to save tag' }))
+      setDateModal(prev => ({ ...prev, saving: false, error: 'Failed to save date tag' }))
     }
   }
 
@@ -333,7 +385,7 @@ function App() {
       await fetch(`http://localhost:4000/api/project-tags/${dateModal.tagId}`, {
         method: 'DELETE'
       })
-      fetchProjectTags()
+      loadProjectTags(currentProjectName)
       closeDateModal()
     } catch (err) {
       setDateModal(prev => ({ ...prev, saving: false, error: 'Failed to delete tag' }))
@@ -355,8 +407,8 @@ function App() {
                   projects.map(project =>
                     React.createElement('li', { 
                       key: project.id,
-                      onClick: () => setSelectedProject(project),
-                      onDoubleClick: () => { setSelectedProject(project); setShowProjectPage(true); loadProjectDocuments(project.name) },
+                      onClick: () => { setSelectedProject(project); loadProjectTags(project.name) },
+                      onDoubleClick: () => { setSelectedProject(project); loadProjectTags(project.name); setShowProjectPage(true); loadProjectDocuments(project.name) },
                       style: { 
                         marginBottom: '10px', 
                         padding: '10px', 

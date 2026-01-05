@@ -1,1 +1,1 @@
-ALTER TABLE global_tags ADD COLUMN type TEXT;
+ALTER TABLE global_tags ADD COLUMN IF NOT EXISTS type TEXT;
