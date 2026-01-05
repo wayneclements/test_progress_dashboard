@@ -47,6 +47,7 @@ export default function App() {
   const [globalTags, setGlobalTags] = useState<GlobalTag[]>([])
   const [documentTags, setDocumentTags] = useState<DocumentTag[]>([])
   const [loading, setLoading] = useState(false)
+  const [editTableModal, setEditTableModal] = useState<{ isOpen: boolean; tag: ProjectTag | null }>({ isOpen: false, tag: null })
 
   useEffect(() => {
     fetchProjects()
@@ -153,6 +154,11 @@ export default function App() {
     const globalTag = globalTags.find(gt => gt.name === tag.tag_name)
     const tagType = globalTag?.type || 'text'
     
+    if (tagType === 'table') {
+      setEditTableModal({ isOpen: true, tag })
+      return
+    }
+    
     const newValue = prompt(`Edit ${tag.tag_name} (type: ${tagType}):`, tag.tag_value || '')
     
     if (newValue !== null && newValue !== tag.tag_value) {
@@ -177,6 +183,39 @@ export default function App() {
         alert('Failed to update tag')
       }
     }
+  }
+
+  const handleTableModalSave = async (newValue: string) => {
+    if (!editTableModal.tag) return
+    
+    if (newValue !== editTableModal.tag.tag_value) {
+      try {
+        const response = await fetch(`http://localhost:4000/api/project-tags/${editTableModal.tag.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ tag_value: newValue })
+        })
+        
+        if (response.ok) {
+          await fetchProjectTags()
+          setEditTableModal({ isOpen: false, tag: null })
+        } else {
+          const error = await response.json()
+          alert(`Error updating tag: ${error.error}`)
+        }
+      } catch (err) {
+        console.error('Error updating tag:', err)
+        alert('Failed to update tag')
+      }
+    } else {
+      setEditTableModal({ isOpen: false, tag: null })
+    }
+  }
+
+  const handleTableModalClose = () => {
+    setEditTableModal({ isOpen: false, tag: null })
   }
 
   return (
@@ -282,6 +321,204 @@ export default function App() {
                   const isEditable = Boolean(matchingProjectTag)
 
                   return (
+
+      {/* Edit Table Modal */}
+      {editTableModal.isOpen && editTableModal.tag && (
+        <EditTableModal
+          tag={editTableModal.tag}
+          globalTag={globalTags.find(gt => gt.name === editTableModal.tag!.tag_name)}
+          onSave={handleTableModalSave}
+          onClose={handleTableModalClose}
+        />
+      )}
+    </div>
+  )
+}
+
+interface EditTableModalProps {
+  tag: ProjectTag
+  globalTag?: GlobalTag
+  onSave: (value: string) => void
+  onClose: () => void
+}
+
+function EditTableModal({ tag, globalTag, onSave, onClose }: EditTableModalProps) {
+  const [tableData, setTableData] = useState<Array<Record<string, string>>>(
+    tag.tag_value ? JSON.parse(tag.tag_value) : []
+  )
+
+  const columns = globalTag?.columns?.split(',').map(c => c.trim()) || []
+
+  const handleAddRow = () => {
+    const newRow: Record<string, string> = {}
+    columns.forEach(col => {
+      newRow[col] = ''
+    })
+    setTableData([...tableData, newRow])
+  }
+
+  const handleDeleteRow = (index: number) => {
+    setTableData(tableData.filter((_, i) => i !== index))
+  }
+
+  const handleCellChange = (rowIndex: number, colName: string, value: string) => {
+    const newData = [...tableData]
+    newData[rowIndex][colName] = value
+    setTableData(newData)
+  }
+
+  const handleSave = () => {
+    onSave(JSON.stringify(tableData))
+  }
+
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000
+    }}>
+      <div style={{
+        backgroundColor: 'white',
+        borderRadius: 8,
+        padding: 30,
+        maxWidth: 900,
+        maxHeight: '80vh',
+        overflowY: 'auto',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+      }}>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
+          <h2 style={{margin: 0}}>Edit Table: {tag.tag_name}</h2>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: 24,
+              cursor: 'pointer',
+              color: '#999'
+            }}
+          >
+            ×
+          </button>
+        </div>
+
+        {columns.length === 0 ? (
+          <p style={{color: '#666'}}>No columns defined for this table tag.</p>
+        ) : (
+          <>
+            <div style={{overflowX: 'auto', marginBottom: 20}}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                border: '1px solid #ddd'
+              }}>
+                <thead>
+                  <tr style={{backgroundColor: '#f5f5f5'}}>
+                    <th style={{padding: 10, border: '1px solid #ddd', textAlign: 'left'}}>Action</th>
+                    {columns.map((col) => (
+                      <th key={col} style={{padding: 10, border: '1px solid #ddd', textAlign: 'left'}}>
+                        {col}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableData.map((row, rowIndex) => (
+                    <tr key={rowIndex}>
+                      <td style={{padding: 10, border: '1px solid #ddd'}}>
+                        <button
+                          onClick={() => handleDeleteRow(rowIndex)}
+                          style={{
+                            background: '#ff6b6b',
+                            color: 'white',
+                            border: 'none',
+                            padding: '4px 8px',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: 12
+                          }}
+                        >
+                          Delete
+                        </button>
+                      </td>
+                      {columns.map((col) => (
+                        <td key={col} style={{padding: 10, border: '1px solid #ddd'}}>
+                          <input
+                            type="text"
+                            value={row[col] || ''}
+                            onChange={(e) => handleCellChange(rowIndex, col, e.target.value)}
+                            style={{
+                              width: '100%',
+                              padding: '6px',
+                              border: '1px solid #ddd',
+                              borderRadius: 4,
+                              fontSize: 14
+                            }}
+                          />
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{display: 'flex', gap: 10, marginBottom: 20}}>
+              <button
+                onClick={handleAddRow}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#4CAF50',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 14
+                }}
+              >
+                + Add Row
+              </button>
+            </div>
+          </>
+        )}
+
+        <div style={{display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20}}>
+          <button
+            onClick={onClose}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#ccc',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontSize: 14
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: '#007acc',
+              color: 'white',
+              border: 'none',
+              borderRadius: 4,
+              cursor: 'pointer',
+              fontSize: 14
+            }}
+          >
+            Save
+          </button>
+        </div>
+      </div>
                     <button
                       key={tag.tag_name}
                       onDoubleClick={() => matchingProjectTag && handleTagDoubleClick(matchingProjectTag)}

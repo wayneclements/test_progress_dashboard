@@ -10,56 +10,26 @@ test_progress_dashboard/
 │   ├── src/
 │   │   ├── index.ts          # Express server & API endpoints
 │   │   └── migrate.ts        # Database migration runner
-│   ├── migrations/
-│   │   ├── 001_create_projects.sql              # Projects table schema
-│   │   ├── 002_create_global_tags.sql           # global_tags table schema
-│   │   ├── 003_create_global_documents.sql      # global_documents table schema
-│   │   ├── 004_add_documnet_id_to_global_documents.sql
-│   │   ├── 005_add_documnet_description_to_global_documents.sql
-│   │   ├── 006_rename_documnet_id_to_document_id.sql
-│   │   ├── 007_rename_documnet_description_to_document_description.sql
-│   │   ├── 008_create_project_documents.sql              # project_documents table schema
-│   │   ├── 009_drop_title_from_global_documents.sql
-│   │   ├── 010_drop_content_from_global_documents.sql
-│   │   ├── 011_drop_content_from_project_documents.sql
-│   │   ├── 012_drop_title_from_project_documents.sql
-│   │   ├── 013_rename_project_id_to_project_name.sql
-│   │   ├── 014_change_project_name_type_to_text.sql
-│   │   ├── 015_drop_project_documents_table.sql
-│   │   ├── 016_drop_fk_constraint.sql
-│   │   ├── 017_recreate_project_documents_table.sql
-│   │   ├── 018_copy_global_documents_to_project_documents.sql
-│   │   ├── 019_create_project_tags_table.sql
-│   │   ├── 020_create_document_tags_table.sql
-│   │   ├── 021_rename_document_id_to_document_name.sql
-│   │   ├── 022_add_document_name_to_document_tags.sql
-│   │   ├── 023_rename_document_id_column_in_global_documents.sql
-│   │   ├── 024_rename_document_id_to_document_iname.sql
-│   │   ├── 025_rename_document_iname_to_document_name.sql
-│   │   └── 026_add_type_to_global_tags.sql
-│   ├── scripts/
-│   │   ├── create_db.js                  # Create PostgreSQL database
-│   │   ├── drop_db.js                    # Drop PostgreSQL database
-│   │   ├── insert_project.js             # Insert test project
-│   │   ├── query_projects.js             # Query all projects
-│   │   ├── describe_table.js             # Show table columns
-│   │   ├── insert_global_document.js     # Insert row to global_documents
-│   │   ├── query_global_document.js      # Query global_documents
-│   │   ├── query_project_documents.js    # Query project_documents
-│   │   ├── query_global_tags.js          # Query global_tags
-│   │   ├── query_project_tags.js         # Query project_tags
-│   │   ├── query_document_tags.js        # Query document_tags
-│   │   └── update_global_tag_type.js     # Update tag type in global_tags
+│   ├── migrations/           # 30 SQL migration files for database schema evolution
+│   │   ├── 001_create_projects.sql through 030_add_columns_to_global_tags.sql
+│   ├── scripts/              # Database management utilities
+│   │   ├── create_db.js, drop_db.js, insert_project.js
+│   │   ├── query_*.js (projects, documents, tags)
+│   │   ├── describe_*.js, and other utilities
 │   ├── package.json
 │   ├── tsconfig.json
 │   └── .env                  # Database credentials
 ├── frontend/
 │   ├── src/
-│   │   └── main.js           # React app (no build step)
+│   │   ├── App.tsx           # React app root component (TypeScript)
+│   │   ├── main.tsx          # React 18 entry point (TypeScript)
+│   │   ├── main.js           # Legacy entry point (kept for reference)
+│   │   └── global.css        # Global stylesheet
 │   ├── index.html            # HTML entry point
 │   ├── server.js             # Express static server
 │   ├── package.json
-│   └── global.css            # Stylesheet
+│   ├── tsconfig.json
+│   └── vite.config.ts        # Vite build configuration (if using Vite)
 └── README.md
 ```
 
@@ -107,11 +77,22 @@ DATABASE_URL=postgres://postgres:its@localhost:5432/test_process
 
 ### 3. Frontend Setup
 
-Install dependencies only (no build step needed):
+Install dependencies:
 
 ```powershell
 cd frontend
 npm install
+```
+
+The frontend is built with **React 18** using **TypeScript** (`App.tsx` and `main.tsx`). It can be served directly via Express without a separate build step during development, or built with Vite for production.
+
+**Development mode (no build required):**
+The app runs directly from source, with Babel transpiling JSX in-browser (if using CDN setup).
+
+**Production mode:**
+If using Vite or a bundler, build first:
+```powershell
+npm run build
 ```
 
 ## Running the Application
@@ -147,9 +128,11 @@ npm start
 
 Frontend runs on `http://localhost:3000`
 
-Frontend UI:
+**Architecture:**
+- **Framework:** React 18 (TypeScript with `App.tsx` and `main.tsx`)
+- **Editor:** Quill 1.3.6 (via CDN) for WYSIWYG rich text editing
+- **Styling:** Global CSS with component-level styling
 - **Main Page:** Lists all projects on the left panel; displays selected project description on the right panel. Double-click a project to open the Project page.
-- **Project Page:**
   - Left panel: Document cards in two columns; click a card to select a document.
   - Connector lines: A solid vertical line connects stacked cards.
   - Right panel: Shows document details and tag list for the selected document (`document_name`, description, and tags from `document_tags`).
@@ -351,30 +334,42 @@ CREATE TABLE document_tags (
 ## Architecture
 
 - **Backend:** Express.js + TypeScript on port 4000, using `tsx` for TypeScript execution
-- **Frontend:** React 18 (via CDN) with Babel for JSX transpilation, served by Express on port 3000
-  - **Rich Text Editor:** Quill 1.3.6 (via CDN) for WYSIWYG editing of rich text tags
-- **Database:** Local PostgreSQL with SQL migrations
-- **Dependencies:** Cleaned of deprecated packages (removed `ts-node-dev` and transitive `inflight` dependency)
+  - Handles all API endpoints and database operations
+  - Migrations managed via SQL files and `migrate.ts`
+- **Frontend:** React 18 + TypeScript on port 3000
+  - Entry points: `src/main.tsx` (TypeScript) with `src/App.tsx` root component
+  - Legacy: `src/main.js` kept for reference
+  - Server: Express static file server in `server.js`
+  - Rich Text Editor: Quill 1.3.6 (CDN) for WYSIWYG tag editing
+  - Styling: Global CSS + component-level styles
+- **Database:** Local PostgreSQL with 30 SQL migrations for schema evolution
+- **Build Tools:** Vite configuration available (`vite.config.ts`) for production builds
 
 Docker has been removed; everything runs directly on your machine.
 
+**Development Workflow:**
+- Backend: `npm run dev` with `tsx --watch` for hot-reload on changes
+- Frontend: Served by Express on port 3000, no build step required for development
+- TypeScript: Compiled to JavaScript at runtime on backend and frontend
+
 ## Notes
 
-- Frontend loads React from CDN and transpiles JSX in-browser using Babel (development-friendly).
-- Backend uses dotenv to load `DATABASE_URL` from `.env`.
-- Migrations run via `npm run migrate` using `tsx` as the TypeScript runner.
-- All database utilities are simple Node.js scripts using the `pg` library.
-- Backend development uses `npm run dev` with `tsx --watch` for hot-reload.
-- `project_documents` table stores documents scoped to project names (text-based, not FK-based).
-- All global_documents are duplicated in `project_documents` for each project via CROSS JOIN migration.
-- `global_documents` contains only `id`, `created_at`, `document_name`, and `document_description` (no `title` or `content`).
-- `project_documents` contains only `id`, `project_name`, `document_name`, `document_description`, and `created_at` (no `title` or `content`).
-- Tag types in `global_tags` determine the UI behavior:
-  - Text tags use simple input fields
-  - Rich text tags use Quill WYSIWYG editor with formatting toolbar (saves as HTML)
-  - Date tags use date pickers and display in dd/MM/yyyy format
-- Rich text display: HTML tags are stripped and only the first 50 characters of plain text are shown in the table, with "..." appended if longer. Full content is editable in the modal.
-- The `document-tags` API endpoint joins with `global_tags` to include the `type` field for proper modal rendering.
+- **Frontend:** Built with React 18 and TypeScript (`App.tsx`, `main.tsx`). Entry point is `main.tsx`.
+- **Backend:** Uses `tsx` as the TypeScript runner for development, migrations, and scripts (replaces `ts-node-dev`).
+- **Migrations:** 30 SQL migration files track schema evolution from initial tables through refinements.
+- **Database:** Local PostgreSQL; all database utilities are simple Node.js scripts using the `pg` library.
+- **Development:** Backend uses `npm run dev` with `tsx --watch` for hot-reload; Frontend served by Express.
+- **project_documents table:** Stores documents scoped to project names (text-based, not FK-based).
+  - All `global_documents` are duplicated in `project_documents` for each project via CROSS JOIN migration.
+- **global_documents:** Contains only `id`, `created_at`, `document_name`, and `document_description`.
+- **project_documents:** Contains only `id`, `project_name`, `document_name`, `document_description`, and `created_at`.
+- **Tag types in global_tags:**
+  - `'text'` - Simple input field
+  - `'rich_text'` - Quill WYSIWYG editor with formatting toolbar (saves as HTML)
+  - `'date'` - Date picker, displays in dd/MM/yyyy format
+- **Rich text display:** HTML tags are stripped; first 50 characters of plain text shown in table with "..." if longer. Full content editable in modal.
+- **API joins:** The `document-tags` endpoint joins with `global_tags` to include the `type` field for proper modal rendering.
+- **No deprecated dependencies:** Removed `ts-node-dev` and transitive `inflight` dependency for a cleaner build.
 ## PostgreSQL Access via psql
 
 You can access your PostgreSQL database directly using `psql`:
@@ -443,7 +438,12 @@ node scripts/update_global_tag_type.js
     npm run dev
     ```
   - Test the API directly: http://localhost:4000/api/projects
-  - If on a different host/port, update the fetch URL in `frontend/src/main.js`.
+  - If on a different host/port, update the fetch URL in `frontend/src/main.tsx` or `frontend/src/main.js`.
+
+- TypeScript compilation errors:
+  - Ensure `tsconfig.json` is properly configured in both `backend/` and `frontend/`
+  - Run `npm install` to ensure all dependencies are installed
+  - Check that `tsx` is installed globally or in `node_modules` for TypeScript execution
 
 - Database connection errors:
   - Verify PostgreSQL Windows service is running and listening on localhost:5432.
@@ -454,3 +454,8 @@ node scripts/update_global_tag_type.js
     node scripts/create_db.js test_process
     npm run migrate
     ```
+
+- Port conflicts:
+  - Backend default: 4000
+  - Frontend default: 3000
+  - If ports are in use, modify the port in `backend/src/index.ts` and `frontend/server.js`
