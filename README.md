@@ -28,8 +28,7 @@ test_progress_dashboard/
 │   ├── index.html            # HTML entry point
 │   ├── server.js             # Express static server
 │   ├── package.json
-│   ├── tsconfig.json
-│   └── vite.config.ts        # Vite build configuration (if using Vite)
+│   └── tsconfig.json
 └── README.md
 ```
 
@@ -84,16 +83,10 @@ cd frontend
 npm install
 ```
 
-The frontend is built with **React 18** using **TypeScript** (`App.tsx` and `main.tsx`). It can be served directly via Express without a separate build step during development, or built with Vite for production.
+The frontend is built with **React 18** using **TypeScript** (`App.tsx` and `main.tsx`). It is served directly via Express without a separate build step during development.
 
-**Development mode (no build required):**
-The app runs directly from source, with Babel transpiling JSX in-browser (if using CDN setup).
-
-**Production mode:**
-If using Vite or a bundler, build first:
-```powershell
-npm run build
-```
+**Development mode:**
+The app runs directly from source with TypeScript transpiled at runtime.
 
 ## Running the Application
 
@@ -343,7 +336,6 @@ CREATE TABLE document_tags (
   - Rich Text Editor: Quill 1.3.6 (CDN) for WYSIWYG tag editing
   - Styling: Global CSS + component-level styles
 - **Database:** Local PostgreSQL with 30 SQL migrations for schema evolution
-- **Build Tools:** Vite configuration available (`vite.config.ts`) for production builds
 
 Docker has been removed; everything runs directly on your machine.
 
