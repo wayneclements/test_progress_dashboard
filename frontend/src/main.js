@@ -135,6 +135,143 @@ function RichTextModal({ richTextModal, projectTagsLoading, closeRichTextModal, 
   )
 }
 
+function TableModal({ tableModal, projectTagsLoading, closeTableModal, deleteTableValue, saveTableValue, setTableModal }) {
+  const [tableData, setTableData] = React.useState([])
+
+  React.useEffect(() => {
+    if (tableModal.open) {
+      try {
+        const parsed = tableModal.value ? JSON.parse(tableModal.value) : []
+        setTableData(Array.isArray(parsed) ? parsed : [])
+      } catch (e) {
+        setTableData([])
+      }
+    }
+  }, [tableModal.open, tableModal.value])
+
+  const columns = tableModal.columns ? tableModal.columns.split(',').map(c => c.trim()) : []
+
+  const handleAddRow = () => {
+    const newRow = {}
+    columns.forEach(col => {
+      newRow[col] = ''
+    })
+    setTableData([...tableData, newRow])
+  }
+
+  const handleDeleteRow = (index) => {
+    setTableData(tableData.filter((_, i) => i !== index))
+  }
+
+  const handleCellChange = (rowIndex, colName, value) => {
+    const newData = [...tableData]
+    newData[rowIndex][colName] = value
+    setTableData(newData)
+  }
+
+  const handleSave = () => {
+    saveTableValue(JSON.stringify(tableData))
+  }
+
+  if (!tableModal.open) return null
+
+  return React.createElement('div', {
+    style: {
+      position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.55)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20
+    }
+  },
+    React.createElement('div', {
+      style: {
+        backgroundColor: '#fff', padding: '30px', borderRadius: '8px', maxWidth: '900px',
+        maxHeight: '80vh', overflowY: 'auto', boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
+        display: 'flex', flexDirection: 'column', gap: '12px'
+      }
+    },
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center' } },
+        React.createElement('h2', { style: { margin: 0 } }, `Edit Table Tag: ${tableModal.tagName}`),
+        React.createElement('button', {
+          onClick: closeTableModal,
+          style: {
+            background: 'none', border: 'none', fontSize: '24px',
+            cursor: 'pointer', color: '#999'
+          }
+        }, '×')
+      ),
+      projectTagsLoading && React.createElement('p', { style: { color: '#666', margin: 0 } }, 'Refreshing tags...'),
+      columns.length === 0
+        ? React.createElement('p', { style: { color: '#666' } }, 'No columns defined for this table tag.')
+        : React.createElement(React.Fragment, null,
+          React.createElement('div', { style: { overflowX: 'auto' } },
+            React.createElement('table', {
+              style: {
+                width: '100%', borderCollapse: 'collapse', border: '1px solid #ddd'
+              }
+            },
+              React.createElement('thead', null,
+                React.createElement('tr', { style: { backgroundColor: '#f5f5f5' } },
+                  React.createElement('th', { style: { padding: '10px', border: '1px solid #ddd', textAlign: 'left' } }, 'Action'),
+                  columns.map((col) =>
+                    React.createElement('th', {
+                      key: col,
+                      style: { padding: '10px', border: '1px solid #ddd', textAlign: 'left' }
+                    }, col)
+                  )
+                )
+              ),
+              React.createElement('tbody', null,
+                tableData.map((row, rowIndex) =>
+                  React.createElement('tr', { key: rowIndex },
+                    React.createElement('td', { style: { padding: '10px', border: '1px solid #ddd' } },
+                      React.createElement('button', {
+                        onClick: () => handleDeleteRow(rowIndex),
+                        style: {
+                          background: '#ff6b6b', color: 'white', border: 'none',
+                          padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px'
+                        }
+                      }, 'Delete')
+                    ),
+                    columns.map((col) =>
+                      React.createElement('td', {
+                        key: col,
+                        style: { padding: '10px', border: '1px solid #ddd' }
+                      },
+                        React.createElement('input', {
+                          type: 'text',
+                          value: row[col] || '',
+                          onChange: (e) => handleCellChange(rowIndex, col, e.target.value),
+                          style: {
+                            width: '100%', padding: '6px', border: '1px solid #ddd',
+                            borderRadius: '4px', fontSize: '14px'
+                          }
+                        })
+                      )
+                    )
+                  )
+                )
+              )
+            )
+          ),
+          React.createElement('div', { style: { display: 'flex', gap: '10px' } },
+            React.createElement('button', {
+              onClick: handleAddRow,
+              style: {
+                padding: '8px 16px', backgroundColor: '#4CAF50', color: 'white',
+                border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px'
+              }
+            }, '+ Add Row')
+          )
+        ),
+      tableModal.error && React.createElement('p', { style: { color: 'red', margin: 0 } }, tableModal.error),
+      React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '4px' } },
+        React.createElement('button', { onClick: closeTableModal, style: { padding: '10px 20px', backgroundColor: '#ccc', border: 'none', borderRadius: '4px', cursor: 'pointer' }, disabled: tableModal.saving }, 'Cancel'),
+        React.createElement('button', { onClick: deleteTableValue, style: { padding: '10px 20px', cursor: 'pointer', backgroundColor: '#f8d7da', border: '1px solid #f5c2c7', borderRadius: '4px' }, disabled: tableModal.saving }, tableModal.tagId ? 'Delete' : 'Discard'),
+        React.createElement('button', { onClick: handleSave, style: { padding: '10px 20px', backgroundColor: '#007acc', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }, disabled: tableModal.saving }, tableModal.tagId ? 'Save' : 'Create')
+      )
+    )
+  )
+}
+
 function App() {
   const [projects, setProjects] = React.useState([])
   const [loading, setLoading] = React.useState(true)
@@ -151,6 +288,8 @@ function App() {
   const [tagModal, setTagModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
   const [richTextModal, setRichTextModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
   const [dateModal, setDateModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
+  const [tableModal, setTableModal] = React.useState({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null, columns: '' })
+  const [globalTags, setGlobalTags] = React.useState([])
 
   const currentProjectName = selectedProject?.name || ''
 
@@ -164,6 +303,16 @@ function App() {
       .catch(err => {
         setError(err.message)
         setLoading(false)
+      })
+    
+    // Load global tags
+    fetch('http://localhost:4000/api/global-tags')
+      .then(res => res.json())
+      .then(data => {
+        setGlobalTags(data)
+      })
+      .catch(err => {
+        console.error('Error fetching global tags:', err)
       })
   }, [])
 
@@ -240,6 +389,12 @@ function App() {
       setRichTextModal(modalData)
     } else if (tag.type === 'date') {
       setDateModal(modalData)
+    } else if (tag.type === 'table') {
+      const globalTag = globalTags.find(gt => gt.name === tag.tag_name)
+      setTableModal({
+        ...modalData,
+        columns: globalTag?.columns || ''
+      })
     } else {
       setTagModal(modalData)
     }
@@ -250,6 +405,8 @@ function App() {
   const closeRichTextModal = () => setRichTextModal({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
 
   const closeDateModal = () => setDateModal({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null })
+  
+  const closeTableModal = () => setTableModal({ open: false, tagName: '', tagId: null, value: '', saving: false, error: null, columns: '' })
 
   const saveTagValue = async () => {
     if (!currentProjectName) {
@@ -392,6 +549,50 @@ function App() {
     }
   }
 
+  const saveTableValue = async (tableData) => {
+    if (!currentProjectName) {
+      setTableModal(prev => ({ ...prev, error: 'Select a project first' }))
+      return
+    }
+
+    setTableModal(prev => ({ ...prev, saving: true, error: null }))
+    try {
+      if (tableModal.tagId) {
+        await fetch(`http://localhost:4000/api/project-tags/${tableModal.tagId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_value: tableData })
+        })
+      } else {
+        await fetch('http://localhost:4000/api/project-tags', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tag_name: tableModal.tagName, tag_value: tableData, project_name: currentProjectName })
+        })
+      }
+      loadProjectTags(currentProjectName)
+      closeTableModal()
+    } catch (err) {
+      setTableModal(prev => ({ ...prev, saving: false, error: 'Failed to save tag' }))
+    }
+  }
+
+  const deleteTableValue = async () => {
+    if (!tableModal.tagId) {
+      return closeTableModal()
+    }
+    setTableModal(prev => ({ ...prev, saving: true, error: null }))
+    try {
+      await fetch(`http://localhost:4000/api/project-tags/${tableModal.tagId}`, {
+        method: 'DELETE'
+      })
+      loadProjectTags(currentProjectName)
+      closeTableModal()
+    } catch (err) {
+      setTableModal(prev => ({ ...prev, saving: false, error: 'Failed to delete tag' }))
+    }
+  }
+
   return React.createElement(React.Fragment, null,
     !showProjectPage && React.createElement('div', { style: { padding: 20 } },
       React.createElement('h1', null, 'Projects Page'),
@@ -513,6 +714,8 @@ function App() {
                         let value = projectTag && projectTag.tag_value !== null && projectTag.tag_value !== undefined && projectTag.tag_value !== ''
                           ? projectTag.tag_value
                           : 'empty'
+                        let isTableValue = false
+                        let tableValues = []
                         
                         // Format date values
                         if (t.type === 'date' && value !== 'empty' && value) {
@@ -536,13 +739,55 @@ function App() {
                           value = plainText.substring(0, 50) + (plainText.length > 50 ? '...' : '')
                         }
                         
+                        // Format table values - show first column values stacked
+                        if (t.type === 'table' && value !== 'empty' && value) {
+                          try {
+                            const tableData = JSON.parse(value)
+                            if (Array.isArray(tableData)) {
+                              const rowCount = tableData.length
+                              if (rowCount === 0) {
+                                value = 'Empty table'
+                              } else {
+                                // Get the first column name from global tags
+                                const globalTag = globalTags.find(gt => gt.name === t.tag_name)
+                                if (globalTag && globalTag.columns) {
+                                  const columns = globalTag.columns.split(',').map(c => c.trim())
+                                  const firstColumn = columns[0]
+                                  
+                                  // Extract values from first column
+                                  const firstColumnValues = tableData
+                                    .map(row => row[firstColumn])
+                                    .filter(val => val && val.trim() !== '')
+                                  
+                                  if (firstColumnValues.length > 0) {
+                                    isTableValue = true
+                                    tableValues = firstColumnValues
+                                  } else {
+                                    value = rowCount === 1 ? '1 row' : `${rowCount} rows`
+                                  }
+                                } else {
+                                  value = rowCount === 1 ? '1 row' : `${rowCount} rows`
+                                }
+                              }
+                            }
+                          } catch (e) {
+                            // Keep original value if parsing fails
+                          }
+                        }
+                        
                         return React.createElement('tr', {
                           key: t.id,
                           style: { cursor: 'pointer' },
                           onDoubleClick: () => openTagModal(t)
                         },
                           React.createElement('td', { style: { padding: '8px', borderBottom: '1px solid #eee', textDecoration: 'underline' } }, t.tag_name),
-                          React.createElement('td', { style: { padding: '8px', borderBottom: '1px solid #eee' } }, value)
+                          React.createElement('td', { style: { padding: '8px', borderBottom: '1px solid #eee' } }, 
+                            isTableValue 
+                              ? tableValues.map((val, idx) => 
+                                  React.createElement('div', { key: idx }, val)
+                                )
+                              : value
+                          )
                         )
                       })
                     )
@@ -620,7 +865,16 @@ function App() {
           React.createElement('button', { onClick: saveDateValue, style: { padding: '8px 12px', cursor: 'pointer', backgroundColor: '#0d6efd', color: '#fff', border: '1px solid #0b5ed7' }, disabled: dateModal.saving }, dateModal.tagId ? 'Save' : 'Create')
         )
       )
-    )
+    ),
+
+    tableModal.open && React.createElement(TableModal, {
+      tableModal,
+      projectTagsLoading,
+      closeTableModal,
+      deleteTableValue,
+      saveTableValue,
+      setTableModal
+    })
   )
 }
 

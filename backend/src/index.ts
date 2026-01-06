@@ -146,7 +146,7 @@ app.get('/api/global-tags', async (req, res) => {
   try {
     const client = await pool.connect()
     const result = await client.query(
-      'SELECT id, name, type, created_at FROM global_tags ORDER BY id ASC'
+      'SELECT id, name, type, columns, created_at FROM global_tags ORDER BY id ASC'
     )
     client.release()
     res.json(result.rows)

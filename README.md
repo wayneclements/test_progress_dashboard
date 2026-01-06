@@ -38,8 +38,8 @@ test_progress_dashboard/
 - **PostgreSQL** (v12+) installed locally on Windows (no Docker required)
 - PostgreSQL user credentials (current `.env`): user `postgres`, password `its`, database `test_process`
 
-## Setup Instructions
-
+## Setup Instructions/
+"?:>L,kmjhnfgcvdxeswzazaxsdcFVGBJKNM,L.;/'
 ### 1. Database Setup (Local Postgres)
 
 Ensure PostgreSQL is installed and running on your machine (Windows Services → PostgreSQL). Create the `test_process` database using the helper script (uses credentials from `.env`):
@@ -135,9 +135,14 @@ Frontend runs on `http://localhost:3000`
       - Features: Headers, bold, italic, underline, strike-through, lists, text/background colors, links, and clear formatting
       - Saves content as HTML
     - **Date tags** (`type = 'date'`): "Edit Date Tag" modal with a date picker input
+    - **Table tags** (`type = 'table'`): "Edit Table Tag" modal with an editable data table
+      - Columns are defined in the global_tags table (e.g., "scenario_name, scenario_description")
+      - Users can add/delete rows and edit cell values
+      - Data is stored as JSON array of objects
   - Value display formats:
     - Dates: Displayed in `dd/MM/yyyy` format
     - Rich text: First 50 characters of plain text (HTML tags stripped) with "..." if longer
+    - Tables: Values from the first column displayed stacked row by row (e.g., scenario names)
     - Text: Full value or "empty" if not set
   - Background color: Light yellow (#FFFFE0)
 
@@ -389,8 +394,8 @@ The `global_tags` table currently contains the following tags (15 total):
 | project_name | text |
 | project_description | rich_text |
 | project_start_date | date |
-| project_test_strategy | text |
-| project_test_scenarios | text |
+| project_test_strategy | rich_text |
+| project_test_scenarios | table |
 | project_in_scope | text |
 | project_out_of_scope | text |
 | project_reference | text |

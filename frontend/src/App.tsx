@@ -28,6 +28,7 @@ interface GlobalTag {
   name: string
   type: string
   created_at: string
+  columns?: string
 }
 
 interface DocumentTag {
@@ -394,7 +395,7 @@ function EditTableModal({ tag, globalTag, onSave, onClose }: EditTableModalProps
         boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
       }}>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20}}>
-          <h2 style={{margin: 0}}>Edit Table: {tag.tag_name}</h2>
+          <h2 style={{margin: 0}}>Edit Table</h2>
           <button
             onClick={onClose}
             style={{
